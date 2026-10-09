@@ -1,0 +1,36 @@
+# Maven build output
+target/
+
+# Maven Wrapper: scripts and .mvn/wrapper/maven-wrapper.properties are committed;
+# a downloaded wrapper jar is not needed (distributionType=only-script)
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+nbproject/
+nbactions.xml
+nb-configuration.xml
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and local runtime artifacts
+logs/
+*.log
+
+# Local environment and secret configuration (never commit credentials)
+.env
+.env.*
+*.local.properties
+setenv.bat
+setenv.sh

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<persistence xmlns="https://jakarta.ee/xml/ns/persistence"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence https://jakarta.ee/xml/ns/persistence/persistence_3_2.xsd"
+             version="3.2">
+
+    <persistence-unit name="clothingShopPU" transaction-type="RESOURCE_LOCAL">
+        <provider>org.hibernate.jpa.HibernatePersistenceProvider</provider>
+
+        <!-- Tomcat does not scan for entities, so every managed class is listed explicitly -->
+        <class>com.clothingshop.entity.User</class>
+        <class>com.clothingshop.entity.Customer</class>
+        <class>com.clothingshop.entity.Employee</class>
+        <class>com.clothingshop.entity.Address</class>
+        <class>com.clothingshop.entity.Wishlist</class>
+        <class>com.clothingshop.entity.Product</class>
+        <class>com.clothingshop.entity.Discount</class>
+        <class>com.clothingshop.entity.Review</class>
+        <class>com.clothingshop.entity.Order</class>
+        <class>com.clothingshop.entity.OrderDetail</class>
+        <class>com.clothingshop.entity.OrderDetailId</class>
+        <class>com.clothingshop.entity.Payment</class>
+        <class>com.clothingshop.entity.Voucher</class>
+        <class>com.clothingshop.entity.VoucherPolicy</class>
+        <class>com.clothingshop.entity.DeliveryIssue</class>
+        <class>com.clothingshop.entity.ReturnRequest</class>
+        <exclude-unlisted-classes>true</exclude-unlisted-classes>
+
+        <properties>
+            <!-- URL, user and password are supplied at runtime by com.clothingshop.util.JpaUtil
+                 from environment variables; no credentials are stored here (see README). -->
+            <property name="jakarta.persistence.jdbc.driver" value="com.mysql.cj.jdbc.Driver"/>
+
+            <!-- The schema is managed outside the application: never create, drop or update it -->
+            <property name="jakarta.persistence.schema-generation.database.action" value="none"/>
+
+            <property name="hibernate.connection.provider_class"
+                      value="org.hibernate.hikaricp.internal.HikariCPConnectionProvider"/>
+            <property name="hibernate.hikari.maximumPoolSize" value="10"/>
+
+            <property name="hibernate.jdbc.time_zone" value="Asia/Ho_Chi_Minh"/>
+            <property name="hibernate.show_sql" value="false"/>
+        </properties>
+    </persistence-unit>
+</persistence>
