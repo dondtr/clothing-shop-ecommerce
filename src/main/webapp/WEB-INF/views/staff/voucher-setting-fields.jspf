@@ -1,0 +1,19 @@
+<%-- Các ô chung của một thiết lập voucher tự động. Biến: k (khóa), m (thiết lập đã lưu), mine (form vừa gửi có lỗi), errors --%>
+<div class="row">
+  <t:field name="discountType" label="Loại giảm" error="${mine ? errors.discountType : ''}" cssClass="col-md-6">
+    <select id="discountType_${k}" name="discountType" class="form-control form-control-sm">
+      <option value="">— chưa chọn —</option>
+      <c:forEach items="${types}" var="t"><option value="${t}" ${(mine ? param.discountType : m.discountType) == t.name() ? 'selected' : ''}>${t.label}</option></c:forEach>
+    </select>
+  </t:field>
+  <t:field name="discountValue" label="Giá trị" type="number" step="any" error="${mine ? errors.discountValue : ''}" cssClass="col-md-6"
+           value="${mine ? param.discountValue : (empty m.discountValue ? '' : m.discountValue.stripTrailingZeros().toPlainString())}"/>
+</div>
+<div class="row">
+  <t:field name="quantity" label="Số lượng" type="number" min="0" error="${mine ? errors.quantity : ''}" cssClass="col-md-4"
+           value="${mine ? param.quantity : m.quantity}"/>
+  <t:field name="minOrderValue" label="Đơn tối thiểu (₫)" type="number" min="0" step="1000" error="${mine ? errors.minOrderValue : ''}" cssClass="col-md-4"
+           value="${mine ? param.minOrderValue : (empty m.minOrderValue ? '0' : m.minOrderValue.stripTrailingZeros().toPlainString())}"/>
+  <t:field name="maxDiscount" label="Giảm tối đa (₫)" type="number" min="1000" step="1000" error="${mine ? errors.maxDiscount : ''}" cssClass="col-md-4"
+           value="${mine ? param.maxDiscount : (empty m.maxDiscount ? '' : m.maxDiscount.stripTrailingZeros().toPlainString())}"/>
+</div>

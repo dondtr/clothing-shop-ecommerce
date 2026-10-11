@@ -19,7 +19,7 @@
                hint="Không trùng tên mặt hàng khác (BR-28)" cssClass="col-md-6"/>
       <t:field name="category" label="Danh mục" required="true" error="${errors.category}" cssClass="col-md-3">
         <select id="category" name="category" class="form-control">
-          <c:forEach items="${categories}" var="c"><option value="${c}" ${param.category == c ? 'selected' : ''}>${c.label}</option></c:forEach>
+          <c:forEach items="${categories}" var="c"><option value="${c}" ${param.category == c.name() ? 'selected' : ''}>${c.label}</option></c:forEach>
         </select>
       </t:field>
       <t:field name="basePrice" label="Giá bán (₫)" type="number" value="${param.basePrice}" required="true" min="1000" step="1000"

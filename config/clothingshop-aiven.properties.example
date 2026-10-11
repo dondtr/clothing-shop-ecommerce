@@ -47,4 +47,6 @@ vnpay.hashSecret=
 
 # ---- Khác
 #shop.shippingFee=20000
+# File JSON thiết lập voucher tự động (mục 3.5); thư mục phải ghi được
+#voucher.settingsFile=/duong/dan/voucher-settings.json
 #scheduler.enabled=true
