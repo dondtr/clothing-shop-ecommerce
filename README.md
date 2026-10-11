@@ -2,7 +2,7 @@
 
 Ứng dụng web bán quần áo trực tuyến viết bằng Java (Jakarta Servlet/JSP, Hibernate/JPA, MySQL), chạy trên Apache Tomcat 11.
 
-Đây là **nền tảng ban đầu** của dự án: cấu hình Maven, thư viện, cấu trúc thư mục, cấu hình JPA và các entity theo ERD. Chưa có controller, service, DAO hay trang JSP nào.
+Đã có: nền tảng dự án (Maven, JPA, entity theo ERD sửa lần 4), cấu hình CSDL cho MySQL local và Aiven, giao diện từ template Shoppers, và chức năng **đăng ký tài khoản khách hàng có xác thực email (FR-01)**, **đăng nhập, đăng xuất (FR-02)** theo đặc tả v0.7 và sequence diagram SD04.
 
 ## Công nghệ
 
@@ -18,6 +18,10 @@
 | Logback | 1.6.5 | Backend log duy nhất. Hibernate ghi log qua JBoss Logging, tự nhận SLF4J/Logback |
 | Maven (qua Wrapper) | 3.9.16 | |
 | Apache Tomcat | 11.0.x | |
+| Jakarta Standard Tag Library | API 3.0.2, cài đặt GlassFish 3.0.1 | Tomcat không kèm JSTL |
+| Jakarta Mail | Eclipse Angus Mail 2.0.5 (Jakarta Mail 2.1.5) | Gửi email của đặc tả (E1 – E9) |
+| JUnit Jupiter | 6.1.3 (`test`) | Kiểm thử tự động |
+| H2 Database | 2.5.252 (`test`) | CSDL trong bộ nhớ, chỉ dùng khi chạy test |
 
 Không dùng Spring, Spring Boot hay Spring Data JPA. Mọi API đều dùng namespace `jakarta.*`.
 
@@ -32,26 +36,27 @@ clothing-shop-ecommerce/
 ├── database/schema.sql                     Tạo CSDL và bảng theo ERD (sửa lần 4)
 └── src/main/
     ├── java/com/clothingshop/
-    │   ├── controller/   Servlet nhận request, kiểm tra đầu vào, gọi service, chọn view   (để dành)
-    │   ├── service/      Nghiệp vụ và phạm vi giao dịch                                   (để dành)
-    │   ├── dao/          Truy cập dữ liệu bằng JPA EntityManager                          (để dành)
-    │   ├── dto/          Đối tượng truyền dữ liệu giữa các tầng                           (để dành)
-    │   ├── filter/       Xác thực, phân quyền, xử lý request chung                        (để dành)
-    │   ├── exception/    Exception riêng của ứng dụng                                     (để dành)
-    │   ├── logging/      Thành phần liên quan đến log                                     (để dành)
+    │   ├── controller/   Servlet (trang chủ, đăng ký, xác thực email, đăng nhập, đăng xuất), AppContextListener
+    │   ├── service/      AccountService (FR-01, FR-02), PendingRegistrationStore, EmailService (SMTP / ghi log)
+    │   ├── dao/          UserDao: truy cập dữ liệu bằng JPA EntityManager
+    │   ├── dto/          AuthUser (người dùng đã đăng nhập), RegistrationForm, FlashMessage
+    │   ├── filter/       CsrfFilter: chống giả mạo request cho mọi form POST
+    │   ├── exception/    ValidationException (lỗi theo từng ô), BusinessException
+    │   ├── logging/      (để dành)
     │   ├── entity/       Entity JPA và enum theo ERD
-    │   └── util/         AppConfig (đọc cấu hình), JpaUtil (EntityManagerFactory, giao dịch)
+    │   └── util/         AppConfig, JpaUtil, PasswordHasher (PBKDF2), SignedToken (HMAC), WebUtil
     ├── resources/
     │   ├── META-INF/persistence.xml
     │   └── logback.xml   Log ra console, mức INFO
     └── webapp/
-        ├── assets/css, assets/js, assets/images   (để dành)
+        ├── assets/       CSS, JS, font, ảnh của template Shoppers
         └── WEB-INF/
-            ├── views/    JSP đặt ở đây để không truy cập trực tiếp bằng URL được   (để dành)
+            ├── views/    JSP (common: header, footer; auth: đăng ký, đăng nhập; error)
             └── web.xml
+src/test/java/            Test JUnit (chạy trên H2 trong bộ nhớ)
 ```
 
-Các package và thư mục ghi "để dành" chưa có mã nguồn. Mỗi package có một file `package-info.java` mô tả trách nhiệm của package; thư mục web có file `.gitkeep`. Mục đích là để Git giữ lại thư mục rỗng.
+Package `logging` chưa có mã nguồn; file `package-info.java` giữ lại thư mục trong Git.
 
 ## Yêu cầu
 
@@ -69,7 +74,9 @@ mvnw.cmd clean package
 ./mvnw clean package
 ```
 
-Kết quả: `target/clothing-shop.war`.
+Kết quả: `target/clothing-shop.war`. Lệnh `package` chạy luôn test; chỉ chạy test thì dùng `mvnw.cmd test`.
+
+Test chạy trên CSDL H2 trong bộ nhớ (Hibernate tạo bảng tạm cho riêng lần chạy test), không cần MySQL và không đụng tới CSDL thật.
 
 ## Cơ sở dữ liệu
 
@@ -115,17 +122,45 @@ Tomcat chạy dưới dạng Windows service không nhận biến môi trường
 3. Điền `config/clothingshop-aiven.properties.example` (Aiven bắt buộc SSL; file mẫu có cách tạo truststore từ `ca.pem` để dùng `sslMode=VERIFY_CA`).
 4. Aiven bật `sql_require_primary_key`; mọi bảng trong ERD đều có khóa chính nên không bị ảnh hưởng.
 
-### Kiểm tra đã chạy
+### 4. Cấu hình khác
 
-Trên MySQL Server 26.7.0: `schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi. Chưa thử kết nối Aiven.
+| Khóa | Bắt buộc | Ý nghĩa |
+|---|---|---|
+| `app.secret` | Nên có | Khóa bí mật (ít nhất 32 ký tự ngẫu nhiên) để ký link trong email. Thiếu thì mỗi lần khởi động tự sinh khóa tạm, link đã gửi hết hiệu lực khi khởi động lại |
+| `app.baseUrl` | Khi triển khai | Địa chỉ gốc để tạo link trong email, ví dụ `https://shop.example.com/clothing-shop`. Thiếu thì lấy theo request (chỉ dùng khi phát triển) |
+| `mail.smtp.host`, `mail.smtp.port`, `mail.smtp.username`, `mail.smtp.password`, `mail.smtp.starttls`, `mail.from` | Khi cần gửi email thật | Thiếu `mail.smtp.host` thì email **không được gửi** mà được ghi vào log (mở link xác thực từ log khi phát triển) |
 
 ## Deploy lên Tomcat 11
 
 1. Tạo CSDL và cấu hình kết nối như mục Cơ sở dữ liệu.
 2. Chép `target/clothing-shop.war` vào thư mục `webapps` của Tomcat, hoặc deploy qua Tomcat Manager.
-3. Ứng dụng chạy ở đường dẫn `/clothing-shop`.
+3. Mở `http://localhost:8080/clothing-shop/` (đổi cổng theo cấu hình Tomcat).
 
-Giai đoạn này chưa có trang nào để mở. Việc deploy và kết nối CSDL **chưa được chạy thử**.
+## Chức năng đã làm
+
+| URL | Chức năng |
+|---|---|
+| `/` | Trang chủ |
+| `/register` | Đăng ký tài khoản khách hàng (FR-01): kiểm tra từng ô theo ERD và đặc tả (tên đăng nhập tối đa 50 ký tự, không chứa @ hay khoảng trắng; email, tên đăng nhập không trùng, không phân biệt hoa thường; mật khẩu từ 8 ký tự), gửi email E8 |
+| `/register/sent` | Trang nhắc mở email xác thực |
+| `/register/verify?token=...` | Link trong email E8: hiệu lực 24 giờ, dùng một lần; tạo `User` + `Customer` (hạng CASUAL) trong một giao dịch |
+| `/login` | Đăng nhập bằng tên đăng nhập hoặc email (FR-02); nhân viên bị khóa không đăng nhập được |
+| `/logout` | Đăng xuất (chỉ nhận POST) |
+
+Ghi chú kỹ thuật:
+- Đăng ký chưa xác thực được giữ trong bộ nhớ server, không ghi CSDL; mất khi khởi động lại server (Q35, Q50).
+- Mật khẩu băm bằng PBKDF2-HMAC-SHA256 có muối, 600.000 vòng (có sẵn trong JDK). Link trong email ký bằng HMAC-SHA256 với `app.secret`.
+- Mọi form POST có token CSRF; đăng nhập đổi session id; cookie phiên `HttpOnly`, không đưa session id lên URL.
+- Thông báo sai thông tin đăng nhập luôn giống nhau, không cho biết tài khoản có tồn tại hay không.
+
+Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (cửa hàng, giỏ hàng, đơn hàng...) hiện mở trang 404.
+
+## Kiểm tra đã chạy
+
+- `mvnw.cmd clean package`: 22 test JUnit đạt, tạo được `target/clothing-shop.war`.
+- MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
+- Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
+- **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven.
 
 ## Mô hình entity
 
@@ -142,10 +177,7 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
 - **Khóa lạc quan:** 12 entity gốc có `@Version private Long version` (cột `version BIGINT`). Hibernate tăng version mỗi lần cập nhật và ném `OptimisticLockException` nếu bản ghi đã bị người khác lưu trước. Customer, Employee dùng version của User; VoucherPolicy dùng version của Voucher. Câu lệnh UPDATE hàng loạt phải tự tăng `version`.
 - **Kiểm tra dữ liệu:** các ràng buộc CHECK của ERD (số lượng > 0, rating 1–5, tồn kho ≥ 0) sẽ do tầng service kiểm tra.
 
-## Chưa làm (theo phạm vi giai đoạn khởi tạo)
+## Chưa làm
 
-- Controller, service, DAO, các trang JSP; đăng nhập, giỏ hàng, đặt hàng, thanh toán VNPAY, quản lý tồn kho.
-- Dữ liệu mẫu; tài khoản quản lý tạo sẵn khi triển khai (BR-24).
-- Đóng `EntityManagerFactory` khi ứng dụng dừng (gọi `JpaUtil.close()` từ một `ServletContextListener` khi làm tầng DAO).
-- JSTL: thêm khi làm trang JSP đầu tiên.
-- Kiểm thử tự động.
+- Các chức năng còn lại của đặc tả (FR-03 trở đi): quên mật khẩu, thông tin cá nhân, địa chỉ, sản phẩm, giỏ hàng, đặt hàng, thanh toán VNPAY, quản trị...
+- Tài khoản quản lý tạo sẵn khi triển khai (BR-24); dữ liệu mẫu.

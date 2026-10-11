@@ -31,6 +31,15 @@ public class Employee extends User {
     protected Employee() {
     }
 
+    /** New employee account (FR-40), active from {@code hireDate}. */
+    public Employee(String userName, String passwordHash, String fullName, Gender gender, LocalDate dob, String email,
+                    String phone, LocalDate hireDate, EmployeeRole role) {
+        super(userName, passwordHash, fullName, gender, dob, email, phone);
+        this.hireDate = hireDate;
+        this.active = true;
+        this.role = role;
+    }
+
     public LocalDate getHireDate() {
         return hireDate;
     }

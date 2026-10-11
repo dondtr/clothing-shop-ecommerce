@@ -23,6 +23,13 @@
         <mysql-connector-j.version>26.7.0</mysql-connector-j.version>
         <slf4j.version>2.0.20</slf4j.version>
         <logback.version>1.6.5</logback.version>
+        <jstl-api.version>3.0.2</jstl-api.version>
+        <jstl-impl.version>3.0.1</jstl-impl.version>
+        <angus-mail.version>2.0.5</angus-mail.version>
+
+        <!-- Test-only versions -->
+        <junit.version>6.1.3</junit.version>
+        <h2.version>2.5.252</h2.version>
 
         <!-- Plugin versions -->
         <maven-clean-plugin.version>3.5.0</maven-clean-plugin.version>
@@ -39,6 +46,13 @@
                 <groupId>org.hibernate.orm</groupId>
                 <artifactId>hibernate-platform</artifactId>
                 <version>${hibernate.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -87,6 +101,38 @@
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- Jakarta Standard Tag Library 3.0 for JSP (Tomcat does not ship JSTL) -->
+        <dependency>
+            <groupId>jakarta.servlet.jsp.jstl</groupId>
+            <artifactId>jakarta.servlet.jsp.jstl-api</artifactId>
+            <version>${jstl-api.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.web</groupId>
+            <artifactId>jakarta.servlet.jsp.jstl</artifactId>
+            <version>${jstl-impl.version}</version>
+        </dependency>
+
+        <!-- Jakarta Mail 2.1 (Eclipse Angus implementation) for the emails of the specification (E1 - E9) -->
+        <dependency>
+            <groupId>org.eclipse.angus</groupId>
+            <artifactId>angus-mail</artifactId>
+            <version>${angus-mail.version}</version>
+        </dependency>
+
+        <!-- Tests: JUnit Jupiter and an in-memory H2 database (never used by the application) -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>${h2.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

@@ -59,6 +59,17 @@ public abstract class User {
     protected User() {
     }
 
+    /** Creates a new account; {@code passwordHash} must already be hashed, never the plain password. */
+    protected User(String userName, String passwordHash, String fullName, Gender gender, LocalDate dob, String email, String phone) {
+        this.userName = userName;
+        this.password = passwordHash;
+        this.fullName = fullName;
+        this.gender = gender;
+        this.dob = dob;
+        this.email = email;
+        this.phone = phone;
+    }
+
     public Integer getId() {
         return id;
     }
