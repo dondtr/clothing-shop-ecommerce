@@ -47,6 +47,11 @@ public class Wishlist {
     protected Wishlist() {
     }
 
+    /** Created when the customer adds a first product (FR-10 step 1). */
+    public Wishlist(Customer customer) {
+        this.customer = customer;
+    }
+
     public Integer getId() {
         return id;
     }

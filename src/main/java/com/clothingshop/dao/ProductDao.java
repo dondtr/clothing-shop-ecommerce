@@ -63,6 +63,16 @@ public class ProductDao {
                 .setParameter("name", name).getResultList();
     }
 
+    /** Every row of the products with the given names (letter case ignored), on sale or not. */
+    public List<Product> findByNames(Collection<String> names) {
+        if (names.isEmpty()) {
+            return List.of();
+        }
+        List<String> lower = names.stream().map(n -> n.toLowerCase(Locale.ROOT)).distinct().toList();
+        return em.createQuery("select p from Product p where lower(p.name) in :names order by p.name, p.id", Product.class)
+                .setParameter("names", lower).getResultList();
+    }
+
     /** Colors of the rows on sale, for the shop filter. */
     public List<String> findActiveColors() {
         return em.createQuery("select distinct p.color from Product p where p.active = true order by p.color", String.class)
