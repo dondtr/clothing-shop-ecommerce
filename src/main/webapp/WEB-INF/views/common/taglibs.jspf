@@ -1,0 +1,5 @@
+<%-- Thêm tự động vào đầu mọi trang JSP (web.xml, include-prelude) --%>
+<%@ page contentType="text/html;charset=UTF-8" %>
+<%@ taglib prefix="c" uri="jakarta.tags.core" %>
+<%@ taglib prefix="fn" uri="jakarta.tags.functions" %>
+<c:set var="ctx" value="${pageContext.request.contextPath}" scope="request"/>

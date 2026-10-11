@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,6 +37,15 @@ public class Customer extends User {
     private List<Address> addresses = new ArrayList<>();
 
     protected Customer() {
+    }
+
+    /** New customer account created after email verification (FR-01): level CASUAL, automatic downgrade on. */
+    public Customer(String userName, String passwordHash, String fullName, Gender gender, LocalDate dob, String email,
+                    String phone, LocalDateTime createdAt) {
+        super(userName, passwordHash, fullName, gender, dob, email, phone);
+        this.createdAt = createdAt;
+        this.customerLevel = CustomerLevel.CASUAL;
+        this.autoDowngrade = true;
     }
 
     public LocalDateTime getCreatedAt() {

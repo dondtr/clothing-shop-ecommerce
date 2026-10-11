@@ -13,6 +13,44 @@
         <jsp-property-group>
             <url-pattern>*.jsp</url-pattern>
             <page-encoding>UTF-8</page-encoding>
+            <!-- Every page gets the JSTL tags (c, fn) and ${ctx} without declaring them -->
+            <include-prelude>/WEB-INF/views/common/taglibs.jspf</include-prelude>
+            <trim-directive-whitespaces>true</trim-directive-whitespaces>
+        </jsp-property-group>
+        <!-- Static fragments (header, footer) are read as UTF-8 too -->
+        <jsp-property-group>
+            <url-pattern>*.jspf</url-pattern>
+            <page-encoding>UTF-8</page-encoding>
         </jsp-property-group>
     </jsp-config>
+
+    <!-- Servlets, filters and the listener are declared with annotations (@WebServlet, @WebFilter, @WebListener) -->
+
+    <session-config>
+        <session-timeout>30</session-timeout>
+        <cookie-config>
+            <http-only>true</http-only>
+            <!-- Set to true when the site is served over HTTPS -->
+            <secure>false</secure>
+        </cookie-config>
+        <!-- Never put the session id in URLs -->
+        <tracking-mode>COOKIE</tracking-mode>
+    </session-config>
+
+    <error-page>
+        <error-code>403</error-code>
+        <location>/WEB-INF/views/error/error.jsp</location>
+    </error-page>
+    <error-page>
+        <error-code>404</error-code>
+        <location>/WEB-INF/views/error/error.jsp</location>
+    </error-page>
+    <error-page>
+        <error-code>405</error-code>
+        <location>/WEB-INF/views/error/error.jsp</location>
+    </error-page>
+    <error-page>
+        <error-code>500</error-code>
+        <location>/WEB-INF/views/error/error.jsp</location>
+    </error-page>
 </web-app>

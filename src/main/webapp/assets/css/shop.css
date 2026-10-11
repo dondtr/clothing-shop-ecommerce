@@ -1,0 +1,73 @@
+/* Bổ sung cho template Shoppers — các thành phần riêng của cửa hàng */
+
+/* ---------- Font tiếng Việt ----------
+   Font Mukta của template thiếu dải U+1EA0–U+1EF1 (ạ, ả, ấ, ộ, ữ, ự...) nên chữ có dấu bị lấy từ font khác.
+   Be Vietnam Pro có đủ bộ dấu; các font dự phòng của hệ điều hành cũng hỗ trợ tiếng Việt. */
+:root {
+  --font-family-sans-serif: "Be Vietnam Pro", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+body, .tooltip, .popover, button, input, select, textarea {
+  font-family: var(--font-family-sans-serif);
+}
+
+/* ---------- Thẻ sản phẩm ---------- */
+.product-card { position: relative; height: 100%; background: #fff; }
+.product-card .block-4-image img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
+.badge-sale, .badge-soldout { position: absolute; top: 12px; z-index: 2; font-size: 12px; padding: 5px 8px; }
+.badge-sale { left: 12px; }
+.badge-soldout { right: 12px; }
+.price-old { text-decoration: line-through; color: #999; font-weight: 400; margin-right: 6px; font-size: 0.9em; }
+
+/* ---------- Thanh điều hướng ---------- */
+.site-top-icons .account-menu .dropdown-toggle::after { display: none; }
+.site-top-icons .dropdown-menu { text-align: left; min-width: 220px; }
+.site-top-icons .dropdown-menu .dropdown-item { display: block; color: #333; padding: .4rem 1.2rem; }
+.site-top-icons .dropdown-menu .dropdown-item:hover { background: #f4f4f4; color: #7971ea; }
+.site-top-icons .dropdown-menu form .dropdown-item { cursor: pointer; }
+
+/* ---------- Chung ---------- */
+.rating-stars { color: #f5a623; letter-spacing: 2px; }
+.form-required::after { content: " *"; color: #dc3545; }
+.table td, .table th { vertical-align: middle; }
+.site-blocks-table .product-thumbnail img { max-width: 90px; }
+.text-strike { text-decoration: line-through; }
+.min-vh-50 { min-height: 50vh; }
+
+/* ---------- Chọn biến thể (size / màu) ---------- */
+.variant-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.variant-options input[type=radio] { display: none; }
+.variant-options label {
+  border: 1px solid #ccc; border-radius: 4px; padding: 6px 14px; cursor: pointer; margin: 0;
+  color: #333; background: #fff; transition: all .15s;
+}
+.variant-options input[type=radio]:checked + label { border-color: #7971ea; background: #7971ea; color: #fff; }
+.variant-options input[type=radio]:disabled + label { color: #bbb; border-style: dashed; cursor: not-allowed; }
+
+/* ---------- Đánh giá ---------- */
+.review-item { border-bottom: 1px solid #eee; padding: 16px 0; }
+.review-item:last-child { border-bottom: 0; }
+.star-input { display: inline-flex; flex-direction: row-reverse; gap: 4px; }
+.star-input input { display: none; }
+.star-input label { font-size: 28px; color: #ddd; cursor: pointer; margin: 0; }
+.star-input input:checked ~ label, .star-input label:hover, .star-input label:hover ~ label { color: #f5a623; }
+
+/* ---------- Trạng thái đơn hàng ---------- */
+.order-timeline { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.order-timeline li { padding: 4px 10px; border-radius: 12px; background: #eee; font-size: 13px; }
+.order-timeline li.done { background: #7971ea; color: #fff; }
+
+/* ---------- Khu quản lý (nhân viên / quản trị) ---------- */
+.admin-wrap { display: flex; min-height: 100vh; background: #f6f7fb; }
+.admin-sidebar { width: 240px; background: #25262b; color: #ccc; flex-shrink: 0; }
+.admin-sidebar .brand { display: block; padding: 20px; color: #fff; font-size: 22px; font-weight: 700; }
+.admin-sidebar .nav-link { color: #bbb; padding: 10px 20px; }
+.admin-sidebar .nav-link:hover, .admin-sidebar .nav-link.active { color: #fff; background: #7971ea; }
+.admin-sidebar .nav-section { padding: 16px 20px 6px; font-size: 11px; text-transform: uppercase; color: #777; }
+.admin-main { flex: 1; padding: 24px 32px; min-width: 0; }
+.admin-main .card { border: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.stat-card .value { font-size: 28px; font-weight: 700; color: #25262b; }
+.stat-card .label { color: #888; font-size: 13px; text-transform: uppercase; }
+@media (max-width: 767px) {
+  .admin-wrap { flex-direction: column; }
+  .admin-sidebar { width: 100%; }
+}
