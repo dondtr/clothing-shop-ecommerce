@@ -9,8 +9,8 @@ import com.clothingshop.entity.Discount;
 import com.clothingshop.entity.Product;
 import com.clothingshop.entity.Wishlist;
 import com.clothingshop.exception.BusinessException;
+import com.clothingshop.exception.ConflictException;
 import com.clothingshop.util.JpaUtil;
-import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.PersistenceException;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.hibernate.StaleStateException;
 import org.hibernate.exception.ConstraintViolationException;
 
 /**
@@ -32,8 +31,6 @@ import org.hibernate.exception.ConstraintViolationException;
  */
 public class WishlistService {
 
-    /** Section 3.1: another request saved the same wishlist first (optimistic locking). */
-    static final String MSG_CONFLICT = "Dữ liệu đã được người khác thay đổi, vui lòng tải lại";
     static final String MSG_NOT_FOUND = "Sản phẩm không tồn tại hoặc đã bị xóa.";
     static final String MSG_NOT_SOLD = "Sản phẩm đã ngừng bán.";
 
@@ -112,27 +109,20 @@ public class WishlistService {
     }
 
     /**
-     * Two browsers changing the same wishlist at once: the later commit fails on the version check (or, for the very
-     * first product, on the unique customerId) and the customer is asked to reload (section 3.1).
+     * Two browsers changing the same wishlist at once: the later commit fails on the version check, reported by
+     * {@code JpaUtil} as {@link ConflictException}; for the very first product it fails on the unique customerId of
+     * {@code Wishlist}, reported the same way (section 3.1).
      */
     private static <T> T write(Supplier<T> work) {
         try {
             return work.get();
         } catch (PersistenceException e) {
-            if (isConflict(e)) {
-                throw new BusinessException(MSG_CONFLICT);
+            for (Throwable t = e; t != null; t = t.getCause()) {
+                if (t instanceof ConstraintViolationException) {
+                    throw new ConflictException();
+                }
             }
             throw e;
         }
-    }
-
-    private static boolean isConflict(Throwable e) {
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof OptimisticLockException || t instanceof StaleStateException
-                    || t instanceof ConstraintViolationException) {
-                return true;
-            }
-        }
-        return false;
     }
 }

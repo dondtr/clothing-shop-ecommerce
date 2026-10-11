@@ -14,12 +14,13 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Pages only a signed-in customer can use: cart, wishlist, checkout, orders and the account pages (BR-25, Q40).
+ * Pages only a signed-in customer can use: cart, wishlist, checkout, orders, addresses and vouchers (BR-25, Q40).
  * A visitor who is not signed in is sent to the sign-in page and brought back afterwards (GET only); an employee gets
- * 403, because employee accounts do not buy (BR-27).
+ * 403, because employee accounts do not buy (BR-27). Profile and password pages are for every account
+ * ({@link SignedInFilter}).
  */
 @WebFilter({"/cart", "/cart/*", "/wishlist", "/wishlist/*", "/checkout", "/checkout/*", "/orders", "/orders/*",
-        "/account/*"})
+        "/account/addresses", "/account/addresses/*", "/vouchers"})
 public class CustomerAreaFilter extends HttpFilter {
 
     private static final long serialVersionUID = 1L;

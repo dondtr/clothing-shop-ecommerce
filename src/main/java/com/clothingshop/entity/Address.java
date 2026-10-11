@@ -47,6 +47,30 @@ public class Address {
     protected Address() {
     }
 
+    public Address(String province, String ward, String street, boolean defaultAddress) {
+        this.province = province;
+        this.ward = ward;
+        this.street = street;
+        this.defaultAddress = defaultAddress;
+    }
+
+    /** FR-06 step 2. */
+    public void updateAddress(String province, String ward, String street) {
+        this.province = province;
+        this.ward = ward;
+        this.street = street;
+    }
+
+    /** "street, ward, province": the text written to Order.address when an order is placed (Q06). */
+    public String toAddressString() {
+        return join(street, ward, province);
+    }
+
+    /** The order address text for the given parts, also used to check its length before saving. */
+    public static String join(String street, String ward, String province) {
+        return street + ", " + ward + ", " + province;
+    }
+
     public Integer getId() {
         return id;
     }

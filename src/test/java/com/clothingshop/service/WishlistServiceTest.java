@@ -15,8 +15,8 @@ import com.clothingshop.entity.Product;
 import com.clothingshop.entity.ProductCategory;
 import com.clothingshop.entity.Wishlist;
 import com.clothingshop.exception.BusinessException;
+import com.clothingshop.exception.ConflictException;
 import com.clothingshop.util.JpaUtil;
-import jakarta.persistence.RollbackException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -132,7 +132,7 @@ class WishlistServiceTest {
         wishlist.add(customerId, first.getId());
 
         // Two browsers: this transaction reads the wishlist, the other one adds a product and commits first
-        assertThrows(RollbackException.class, () -> JpaUtil.inTransaction(em -> {
+        assertThrows(ConflictException.class, () -> JpaUtil.inTransaction(em -> {
             Wishlist stale = new WishlistDao(em).findByCustomer(customerId).orElseThrow();
             assertTrue(wishlist.add(customerId, second.getId()));
             stale.getProducts().add(em.find(Product.class, third.getId()));

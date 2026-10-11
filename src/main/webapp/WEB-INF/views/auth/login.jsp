@@ -34,7 +34,8 @@
           <div class="form-group mb-0">
             <button type="submit" class="btn btn-primary btn-lg btn-block">Đăng nhập</button>
           </div>
-          <p class="mt-4 mb-0 text-center">Chưa có tài khoản? <a href="${ctx}/register">Đăng ký ngay</a></p>
+          <p class="mt-3 mb-0 text-center"><a href="${ctx}/forgot-password">Quên mật khẩu?</a></p>
+          <p class="mt-2 mb-0 text-center">Chưa có tài khoản? <a href="${ctx}/register">Đăng ký ngay</a></p>
         </form>
       </div>
     </div>
