@@ -86,3 +86,25 @@ body, .tooltip, .popover, button, input, select, textarea {
 .status-failed, .status-open { background: #f8d0d3; color: #8a1c25; }
 .status-refund { background: #343a40; color: #fff; }
 .stat-card a, a.stat-card { color: inherit; }
+
+/* ---------- Biểu đồ doanh thu (FR-43): cột mảnh tối đa 24px, đầu cột bo 4px, khe 2px, lưới mảnh ---------- */
+.rev-chart { display: flex; height: 240px; margin-bottom: 32px; }
+.rev-axis { position: relative; width: 52px; flex: none; font-size: 11px; color: #6c757d; }
+.rev-axis span { position: absolute; right: 8px; transform: translateY(50%); white-space: nowrap; }
+.rev-plot { position: relative; flex: 1; min-width: 0; }
+.rev-grid { position: absolute; left: 0; right: 0; border-top: 1px solid #eceef1; }
+.rev-grid.base { border-top-color: #c4c8cd; }
+.rev-cols { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; }
+.rev-col { position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; justify-content: center;
+  padding: 0 1px; outline: none; }
+.rev-bar { width: 100%; max-width: 24px; height: var(--h); background: #7971ea; border-radius: 4px 4px 0 0; }
+.rev-col:hover, .rev-col:focus { background: rgba(121, 113, 234, .08); }
+.rev-col:hover .rev-bar, .rev-col:focus .rev-bar { background: #5b52d6; }
+.rev-tip { display: none; position: absolute; bottom: calc(var(--h) + 6px); left: 50%; transform: translateX(-50%); z-index: 5;
+  background: #25262b; color: #fff; font-size: 12px; line-height: 1.5; padding: 6px 10px; border-radius: 4px;
+  white-space: nowrap; pointer-events: none; }
+.rev-col.tip-left .rev-tip { left: 0; transform: none; }
+.rev-col.tip-right .rev-tip { left: auto; right: 0; transform: none; }
+.rev-col:hover .rev-tip, .rev-col:focus .rev-tip { display: block; }
+.rev-x { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); font-size: 11px; color: #6c757d;
+  white-space: nowrap; }
