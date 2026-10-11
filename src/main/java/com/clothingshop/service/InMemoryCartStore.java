@@ -64,6 +64,20 @@ public class InMemoryCartStore implements CartStore {
         return value;
     }
 
+    @Override
+    public void removeProduct(int productId) {
+        for (Integer userId : carts.keySet()) {
+            carts.computeIfPresent(userId, (id, cart) -> {
+                if (!cart.contains(productId)) {
+                    return cart;
+                }
+                Cart copy = cart.copy();
+                copy.removeItem(productId);
+                return copy.isEmpty() ? null : copy;
+            });
+        }
+    }
+
     /** Number of carts in memory. */
     int size() {
         return carts.size();

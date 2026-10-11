@@ -3,6 +3,7 @@ package com.clothingshop.dao;
 import com.clothingshop.entity.Product;
 import com.clothingshop.entity.ProductCategory;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.TypedQuery;
 import java.util.Collection;
 import java.util.List;
@@ -71,6 +72,12 @@ public class ProductDao {
         List<String> lower = names.stream().map(n -> n.toLowerCase(Locale.ROOT)).distinct().toList();
         return em.createQuery("select p from Product p where lower(p.name) in :names order by p.name, p.id", Product.class)
                 .setParameter("names", lower).getResultList();
+    }
+
+    /** Every row of the product called {@code name}, locked for update so concurrent changes run one after the other. */
+    public List<Product> lockByName(String name) {
+        return em.createQuery("select p from Product p where lower(p.name) = lower(:name) order by p.id", Product.class)
+                .setParameter("name", name).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
     }
 
     /** Colors of the rows on sale, for the shop filter. */

@@ -4,12 +4,15 @@ import com.clothingshop.service.AccountService;
 import com.clothingshop.service.AddressService;
 import com.clothingshop.service.AsyncEmailService;
 import com.clothingshop.service.CartService;
+import com.clothingshop.service.CartStore;
 import com.clothingshop.service.CatalogService;
 import com.clothingshop.service.CheckoutService;
 import com.clothingshop.service.CustomerService;
 import com.clothingshop.service.DashboardService;
 import com.clothingshop.service.DeliveryLinks;
 import com.clothingshop.service.DeliveryService;
+import com.clothingshop.service.DiscountAdminService;
+import com.clothingshop.service.DiscountNotifier;
 import com.clothingshop.service.EmailService;
 import com.clothingshop.service.EmployeeService;
 import com.clothingshop.service.InMemoryCartStore;
@@ -18,6 +21,7 @@ import com.clothingshop.service.OrderService;
 import com.clothingshop.service.PasswordResetService;
 import com.clothingshop.service.PaymentService;
 import com.clothingshop.service.PendingRegistrationStore;
+import com.clothingshop.service.ProductAdminService;
 import com.clothingshop.service.ProfileService;
 import com.clothingshop.service.ReturnService;
 import com.clothingshop.service.ReviewService;
@@ -70,7 +74,8 @@ public class AppContextListener implements ServletContextListener {
         AddressService addresses = new AddressService();
         register(context, addresses);
         register(context, new CatalogService(clock));
-        CartService cart = new CartService(new InMemoryCartStore(clock), clock);
+        CartStore carts = new InMemoryCartStore(clock);
+        CartService cart = new CartService(carts, clock);
         register(context, cart);
         register(context, new VoucherService(clock));
         VnpayGateway vnpay = VnpayClient.fromConfig(clock).orElse(null);
@@ -81,7 +86,8 @@ public class AppContextListener implements ServletContextListener {
         if (vnpay == null) {
             LOG.info("VNPAY is not configured (vnpay.tmnCode, vnpay.hashSecret): checkout offers COD only");
         }
-        DeliveryLinks links = new DeliveryLinks(baseUrl(context));
+        String baseUrl = baseUrl(context);
+        DeliveryLinks links = new DeliveryLinks(baseUrl);
         register(context, links);
         register(context, new OrderQueries(clock));
         OrderService orders = new OrderService(payments, notifications, links, clock);
@@ -91,6 +97,9 @@ public class AppContextListener implements ServletContextListener {
         register(context, new ReturnService(payments, notifications, clock));
         register(context, new ReviewService(clock));
         register(context, new WishlistService(clock));
+        register(context, new ProductAdminService(carts, clock));
+        register(context, new DiscountAdminService(clock));
+        DiscountNotifier discountNotifier = new DiscountNotifier(notifications, baseUrl, clock);
         register(context, new CustomerService());
         EmployeeService employees = new EmployeeService(clock);
         register(context, employees);
@@ -102,6 +111,7 @@ public class AppContextListener implements ServletContextListener {
             scheduler.daily("J1 reminder after 3 days", delivery::sendReminders, false);
             scheduler.daily("J2 automatic completion", orders::autoComplete, true);
             scheduler.daily("J3 COD orders not shipped in 15 days", orders::autoCancelCod, true);
+            scheduler.daily("J4 wishlist discount emails", discountNotifier::notifyWishlists, false);
         } else {
             LOG.warn("Scheduled tasks J1 - J7 are disabled (scheduler.enabled=false)");
         }
