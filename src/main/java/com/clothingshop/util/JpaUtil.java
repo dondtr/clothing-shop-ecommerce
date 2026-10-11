@@ -1,19 +1,21 @@
 package com.clothingshop.util;
 
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.Persistence;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
- * Holds the application's single {@link EntityManagerFactory} for the persistence unit {@value #PERSISTENCE_UNIT}.
+ * Holds the application's single {@link EntityManagerFactory} for the persistence unit {@value #PERSISTENCE_UNIT}
+ * and runs units of work for the service layer.
  *
- * <p>Database connection settings are not stored in the repository. They are read, when the factory is first
- * created, from environment variables or, if a variable is absent, from JVM system properties:
+ * <p>Connection settings are not stored in the repository; they are read through {@link AppConfig}:
  * <ul>
- *     <li>{@code CLOTHINGSHOP_DB_URL} / {@code clothingshop.db.url} (required)</li>
- *     <li>{@code CLOTHINGSHOP_DB_USERNAME} / {@code clothingshop.db.username} (required)</li>
- *     <li>{@code CLOTHINGSHOP_DB_PASSWORD} / {@code clothingshop.db.password} (optional, empty if absent)</li>
+ *     <li>{@code db.url} (required), {@code db.username} (required), {@code db.password} (optional);</li>
+ *     <li>{@code db.pool.maxSize} (optional, default 10 from persistence.xml).</li>
  * </ul>
  */
 public final class JpaUtil {
@@ -25,7 +27,7 @@ public final class JpaUtil {
     private JpaUtil() {
     }
 
-    /** Returns the shared factory, creating it on first use. */
+    /** Returns the shared factory, creating it from {@link AppConfig} on first use. */
     public static EntityManagerFactory getEntityManagerFactory() {
         EntityManagerFactory factory = entityManagerFactory;
         if (factory == null) {
@@ -40,7 +42,16 @@ public final class JpaUtil {
         return factory;
     }
 
-    /** Closes the shared factory; intended to be called when the web application stops. */
+    /**
+     * Creates the shared factory with explicit settings instead of {@link AppConfig}. Used by automated tests to
+     * point the persistence unit at an in-memory database; the application itself never calls it.
+     */
+    public static synchronized void initialize(Map<String, Object> settings) {
+        close();
+        entityManagerFactory = Persistence.createEntityManagerFactory(PERSISTENCE_UNIT, settings);
+    }
+
+    /** Closes the shared factory; called when the web application stops. */
     public static synchronized void close() {
         if (entityManagerFactory != null && entityManagerFactory.isOpen()) {
             entityManagerFactory.close();
@@ -48,26 +59,41 @@ public final class JpaUtil {
         entityManagerFactory = null;
     }
 
-    static Map<String, Object> connectionSettings() {
-        Map<String, Object> settings = new HashMap<>();
-        settings.put("jakarta.persistence.jdbc.url", read("CLOTHINGSHOP_DB_URL", "clothingshop.db.url", true));
-        settings.put("jakarta.persistence.jdbc.user", read("CLOTHINGSHOP_DB_USERNAME", "clothingshop.db.username", true));
-        settings.put("jakarta.persistence.jdbc.password", read("CLOTHINGSHOP_DB_PASSWORD", "clothingshop.db.password", false));
-        return settings;
+    /** Runs {@code work} in one transaction: commits when it returns, rolls back when it throws. */
+    public static <T> T inTransaction(Function<EntityManager, T> work) {
+        EntityManager em = getEntityManagerFactory().createEntityManager();
+        EntityTransaction tx = em.getTransaction();
+        try {
+            tx.begin();
+            T result = work.apply(em);
+            tx.commit();
+            return result;
+        } catch (RuntimeException e) {
+            if (tx.isActive()) {
+                tx.rollback();
+            }
+            throw e;
+        } finally {
+            em.close();
+        }
     }
 
-    private static String read(String environmentVariable, String systemProperty, boolean required) {
-        String value = System.getenv(environmentVariable);
-        if (value == null || value.isBlank()) {
-            value = System.getProperty(systemProperty);
+    /** Runs read-only {@code work} with a new entity manager, without a transaction. */
+    public static <T> T read(Function<EntityManager, T> work) {
+        EntityManager em = getEntityManagerFactory().createEntityManager();
+        try {
+            return work.apply(em);
+        } finally {
+            em.close();
         }
-        if (value == null || value.isBlank()) {
-            if (required) {
-                throw new IllegalStateException("Missing database setting: set environment variable "
-                        + environmentVariable + " or system property " + systemProperty);
-            }
-            return "";
-        }
-        return value;
+    }
+
+    static Map<String, Object> connectionSettings() {
+        Map<String, Object> settings = new HashMap<>();
+        settings.put("jakarta.persistence.jdbc.url", AppConfig.require("db.url"));
+        settings.put("jakarta.persistence.jdbc.user", AppConfig.require("db.username"));
+        settings.put("jakarta.persistence.jdbc.password", AppConfig.get("db.password", ""));
+        AppConfig.get("db.pool.maxSize").ifPresent(size -> settings.put("hibernate.hikari.maximumPoolSize", size));
+        return settings;
     }
 }

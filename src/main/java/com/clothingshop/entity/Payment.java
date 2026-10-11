@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 
 /**
@@ -42,6 +43,11 @@ public class Payment {
 
     @Column
     private LocalDateTime paidAt;
+
+    /** Optimistic locking version (column {@code version}); incremented by Hibernate on every update. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     protected Payment() {
     }
@@ -88,5 +94,9 @@ public class Payment {
 
     public void setPaidAt(LocalDateTime paidAt) {
         this.paidAt = paidAt;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

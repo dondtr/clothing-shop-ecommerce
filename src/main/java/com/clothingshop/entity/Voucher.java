@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrimaryKeyJoinColumn;
 import jakarta.persistence.SecondaryTable;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 
 /**
@@ -40,6 +41,11 @@ public class Voucher {
 
     @Embedded
     private VoucherPolicy policy;
+
+    /** Optimistic locking version (column {@code version}); incremented by Hibernate on every update. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     protected Voucher() {
     }
@@ -82,5 +88,9 @@ public class Voucher {
 
     public void setPolicy(VoucherPolicy policy) {
         this.policy = policy;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

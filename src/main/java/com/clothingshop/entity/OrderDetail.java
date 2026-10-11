@@ -8,6 +8,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 
 /**
@@ -38,6 +39,11 @@ public class OrderDetail {
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal subtotal;
+
+    /** Optimistic locking version (column {@code version}); incremented by Hibernate on every update. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     protected OrderDetail() {
     }
@@ -76,5 +82,9 @@ public class OrderDetail {
 
     public void setSubtotal(BigDecimal subtotal) {
         this.subtotal = subtotal;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

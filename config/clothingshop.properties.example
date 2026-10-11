@@ -1,0 +1,26 @@
+# Cấu hình chạy với MySQL trên máy local.
+# Cách dùng: chép file này thành ~/.clothingshop/clothingshop.properties (hoặc đặt biến môi trường
+# CLOTHINGSHOP_CONFIG trỏ tới file đã chép), rồi điền giá trị. Không commit file đã điền mật khẩu.
+# Mỗi khóa cũng đặt được bằng biến môi trường, ví dụ db.url -> CLOTHINGSHOP_DB_URL; biến môi trường được ưu tiên.
+
+# ---- CSDL (tạo trước bằng database/schema.sql)
+db.url=jdbc:mysql://localhost:3306/clothing_shop
+db.username=clothing_app
+db.password=
+#db.pool.maxSize=10
+
+# ---- Khóa bí mật để ký link trong email (xác thực đăng ký, đặt lại mật khẩu)
+# Chuỗi ngẫu nhiên, ít nhất 32 ký tự. Để trống thì mỗi lần khởi động ứng dụng tự sinh khóa tạm
+# (link đã gửi sẽ hết hiệu lực khi khởi động lại; chỉ nên để trống khi phát triển).
+app.secret=
+# Địa chỉ gốc dùng để tạo link trong email. Để trống thì lấy theo request (chỉ nên để trống khi phát triển).
+#app.baseUrl=http://localhost:8080/clothing-shop
+
+# ---- Gửi email qua SMTP
+# Để trống mail.smtp.host thì email không được gửi đi mà chỉ ghi vào log (dùng khi phát triển).
+mail.smtp.host=
+mail.smtp.port=587
+mail.smtp.username=
+mail.smtp.password=
+mail.smtp.starttls=true
+mail.from=

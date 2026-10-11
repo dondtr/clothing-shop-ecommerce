@@ -10,6 +10,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 
 /**
@@ -41,6 +42,11 @@ public class Review {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    /** Optimistic locking version (column {@code version}); incremented by Hibernate on every update. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     protected Review() {
     }
@@ -87,5 +93,9 @@ public class Review {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

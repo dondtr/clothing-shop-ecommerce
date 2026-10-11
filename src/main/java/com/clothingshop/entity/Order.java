@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -67,6 +68,11 @@ public class Order {
     /** Order lines; they exist only as part of the order (composition). */
     @OneToMany(mappedBy = "order", cascade = {CascadeType.PERSIST, CascadeType.MERGE, CascadeType.REMOVE}, orphanRemoval = true)
     private List<OrderDetail> details = new ArrayList<>();
+
+    /** Optimistic locking version (column {@code version}); incremented by Hibernate on every update. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     protected Order() {
     }
@@ -163,5 +169,9 @@ public class Order {
     public void addDetail(OrderDetail detail) {
         details.add(detail);
         detail.setOrder(this);
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

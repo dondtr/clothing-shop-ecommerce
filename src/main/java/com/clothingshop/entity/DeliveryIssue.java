@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 
 /**
@@ -47,6 +48,11 @@ public class DeliveryIssue {
 
     @Column
     private LocalDateTime resolvedAt;
+
+    /** Optimistic locking version (column {@code version}); incremented by Hibernate on every update. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     protected DeliveryIssue() {
     }
@@ -101,5 +107,9 @@ public class DeliveryIssue {
 
     public void setResolvedAt(LocalDateTime resolvedAt) {
         this.resolvedAt = resolvedAt;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 /**
  * Saved delivery address of a customer (table {@code Address}).
@@ -37,6 +38,11 @@ public class Address {
     /** Column {@code isDefault}; renamed in Java to follow bean naming conventions. */
     @Column(name = "isDefault", nullable = false)
     private boolean defaultAddress;
+
+    /** Optimistic locking version (column {@code version}); incremented by Hibernate on every update. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     protected Address() {
     }
@@ -83,5 +89,9 @@ public class Address {
 
     public void setDefaultAddress(boolean defaultAddress) {
         this.defaultAddress = defaultAddress;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

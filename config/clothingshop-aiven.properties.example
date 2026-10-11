@@ -1,0 +1,26 @@
+# Cấu hình kết nối MySQL trên Aiven (https://aiven.io).
+# Host, Port, User, Password và CA certificate (ca.pem) lấy ở trang Overview của MySQL service trên Aiven.
+# Cách dùng giống config/clothingshop.properties.example: chép ra ngoài repo, điền giá trị, trỏ CLOTHINGSHOP_CONFIG tới file.
+#
+# Aiven bắt buộc kết nối SSL. Nên kiểm tra chứng chỉ của server (sslMode=VERIFY_CA) bằng truststore tạo từ ca.pem:
+#   keytool -importcert -noprompt -alias aiven-ca -file ca.pem -keystore aiven-truststore.p12 -storetype PKCS12 -storepass <mật khẩu truststore>
+# Nếu chỉ cần chạy thử, có thể dùng sslMode=REQUIRED (vẫn mã hóa nhưng không kiểm tra chứng chỉ).
+#
+# Trước khi chạy ứng dụng lần đầu, tạo bảng:
+#   mysql --host=<host> --port=<port> --user=avnadmin --password --ssl-mode=REQUIRED < database/schema.sql
+
+db.url=jdbc:mysql://<host>:<port>/clothing_shop?sslMode=VERIFY_CA&trustCertificateKeyStoreUrl=file:/duong/dan/aiven-truststore.p12&trustCertificateKeyStoreType=PKCS12&trustCertificateKeyStorePassword=<mật khẩu truststore>
+db.username=avnadmin
+db.password=
+# Gói nhỏ của Aiven giới hạn số kết nối đồng thời; giữ pool nhỏ.
+db.pool.maxSize=5
+
+app.secret=
+app.baseUrl=https://<tên miền khi triển khai>/clothing-shop
+
+mail.smtp.host=
+mail.smtp.port=587
+mail.smtp.username=
+mail.smtp.password=
+mail.smtp.starttls=true
+mail.from=
