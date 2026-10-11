@@ -4,6 +4,11 @@ import com.clothingshop.entity.Customer;
 import com.clothingshop.entity.Employee;
 import com.clothingshop.entity.EmployeeRole;
 import com.clothingshop.entity.Gender;
+import com.clothingshop.entity.Order;
+import com.clothingshop.entity.OrderStatus;
+import com.clothingshop.entity.Payment;
+import com.clothingshop.entity.PaymentMethod;
+import com.clothingshop.entity.PaymentStatus;
 import com.clothingshop.entity.Product;
 import com.clothingshop.entity.ProductCategory;
 import com.clothingshop.util.JpaUtil;
@@ -52,6 +57,31 @@ final class TestData {
                     color, size, stock, true, NOW);
             em.persist(p);
             return p;
+        });
+    }
+
+    /** An order of {@code total} VND (shipping fee included) with one payment, without lines (enough for totals and levels). */
+    static int order(int customerId, String total, OrderStatus status, PaymentMethod method, PaymentStatus paymentStatus) {
+        return JpaUtil.inTransaction(em -> {
+            Order o = new Order(em.getReference(Customer.class, customerId), null, NOW, "1 Võ Văn Ngân, Thủ Đức, TP. HCM", null,
+                    new BigDecimal("20000"), new BigDecimal(total));
+            o.setStatus(status);
+            em.persist(o);
+            Payment p = new Payment(o, method);
+            p.setStatus(paymentStatus);
+            if (paymentStatus == PaymentStatus.PAID || paymentStatus == PaymentStatus.REFUND) {
+                p.setPaidAt(NOW);
+            }
+            em.persist(p);
+            return o.getId();
+        });
+    }
+
+    static void setPaymentStatus(int orderId, PaymentStatus status) {
+        JpaUtil.inTransaction(em -> {
+            em.createQuery("select p from Payment p where p.order.id = :o", Payment.class).setParameter("o", orderId)
+                    .getSingleResult().setStatus(status);
+            return null;
         });
     }
 }

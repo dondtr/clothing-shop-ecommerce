@@ -74,3 +74,15 @@ body, .tooltip, .popover, button, input, select, textarea {
   .admin-wrap { flex-direction: column; }
   .admin-sidebar { width: 100%; }
 }
+
+/* ---------- Nhãn trạng thái (t:status) ---------- */
+.status-badge { font-size: 12px; font-weight: 500; padding: 5px 8px; }
+.status-pending { background: #ffe8a3; color: #6b5200; }
+.status-confirmed { background: #cfe8ff; color: #0b4a85; }
+.status-shipping { background: #7971ea; color: #fff; }
+.status-completed, .status-paid, .status-approved, .status-resolved { background: #c9f0d6; color: #1d6b3a; }
+.status-cancelled, .status-rejected { background: #e2e3e5; color: #41464b; }
+.status-unpaid { background: #f1f1f1; color: #555; }
+.status-failed, .status-open { background: #f8d0d3; color: #8a1c25; }
+.status-refund { background: #343a40; color: #fff; }
+.stat-card a, a.stat-card { color: inherit; }

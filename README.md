@@ -130,7 +130,18 @@ Tomcat chạy dưới dạng Windows service không nhận biến môi trường
 3. Điền `config/clothingshop-aiven.properties.example` (Aiven bắt buộc SSL; file mẫu có cách tạo truststore từ `ca.pem` để dùng `sslMode=VERIFY_CA`).
 4. Aiven bật `sql_require_primary_key`; mọi bảng trong ERD đều có khóa chính nên không bị ảnh hưởng.
 
-### 4. Cấu hình khác
+### 4. Tài khoản quản lý
+
+Hệ thống có đúng một tài khoản quản lý, tạo sẵn khi triển khai (BR-24). Khi ứng dụng khởi động mà chưa có tài khoản quản lý, nó tạo tài khoản từ cấu hình (cùng nơi với `db.*`, mật khẩu không nằm trong mã nguồn):
+
+| Khóa | Bắt buộc | Ý nghĩa |
+|---|---|---|
+| `admin.userName`, `admin.email`, `admin.password`, `admin.fullName`, `admin.phone` | Có | Thông tin tài khoản quản lý; mật khẩu từ 8 ký tự |
+| `admin.gender`, `admin.dob` | Không | Mặc định `OTHER` và `1990-01-01`; quản lý tự sửa ở trang Thông tin cá nhân |
+
+Đã có tài khoản quản lý thì các khóa này không còn tác dụng; nên xóa `admin.password` khỏi cấu hình sau lần khởi động đầu. Quản lý tạo tài khoản nhân viên trong khu quản lý.
+
+### 5. Cấu hình khác
 
 | Khóa | Bắt buộc | Ý nghĩa |
 |---|---|---|
@@ -158,6 +169,9 @@ Tomcat chạy dưới dạng Windows service không nhận biến môi trường
 | `/reset-password?token=...` | Đặt mật khẩu mới từ link E9; link có chữ ký gồm mã người dùng và dấu vết mật khẩu hiện tại nên hết hiệu lực khi mật khẩu đã đổi, không lưu CSDL |
 | `/account/profile` | Thông tin cá nhân (FR-04), cho mọi tài khoản: sửa họ tên, giới tính, ngày sinh, số điện thoại; không sửa tên đăng nhập, email |
 | `/account/password` | Đổi mật khẩu (FR-05): phải nhập đúng mật khẩu hiện tại |
+| `/staff` | Khu quản lý (nhân viên và quản lý): việc đang chờ (đơn chờ xác nhận, chờ bàn giao, sự cố giao hàng, yêu cầu trả hàng) và các đơn mới nhất. Nhân viên đăng nhập được chuyển thẳng tới đây |
+| `/staff/customers` | Tra cứu khách hàng theo tên, email, số điện thoại (FR-42); trang chi tiết có thông tin, hạng, tổng đã thanh toán, lịch sử đơn, yêu cầu trả hàng. Quản lý nâng hạng (chỉ lên hạng cao hơn, tắt tự hạ hạng) và bật/tắt tự hạ hạng (bật lại thì xét hạng ngay) (FR-28) |
+| `/admin/employees` | Quản lý tạo tài khoản nhân viên STAFF (FR-40), khóa, mở khóa (FR-41); không khóa được tài khoản quản lý |
 | `/account/addresses` | Sổ địa chỉ (FR-06): thêm, sửa, đặt mặc định, xóa; địa chỉ đầu tiên là mặc định; xóa địa chỉ mặc định phải chọn địa chỉ khác hoặc tạo địa chỉ mới làm mặc định trong cùng giao dịch (Q62, SD13); chuỗi "số nhà, phường/xã, tỉnh/thành phố" không quá 255 ký tự |
 | `/shop` | Cửa hàng (FR-07): các mặt hàng đang bán, lọc theo danh mục (`category`), tên (`q`, không phân biệt hoa thường), khoảng giá sau giảm (`minPrice`, `maxPrice`), màu (`color`); 12 mặt hàng mỗi trang (`page`), mới nhất trước; nhãn "Hết hàng" khi mọi dòng hết tồn kho |
 | `/product?id=...` | Chi tiết mặt hàng (FR-08): `id` là một dòng bất kỳ của mặt hàng; chọn màu + kích thước để xem ảnh và tồn kho của dòng đó; điểm trung bình và đánh giá của mọi dòng; mặt hàng không bán trả về 404. Khách hàng đã đăng nhập có nút "Thêm vào giỏ hàng" (dòng hết hàng không thêm được) và "Thêm vào danh sách yêu thích" |
@@ -178,19 +192,23 @@ Ghi chú kỹ thuật:
 - Khóa lạc quan: `JpaUtil.inTransaction` đổi lỗi kiểm tra version thành `ConflictException` ("Dữ liệu đã được người khác thay đổi, vui lòng tải lại", mục 3.1). Form sửa dữ liệu gửi kèm `version` lúc mở form; service so với version hiện tại (`ConflictException.check`) nên lưu từ form cũ bị từ chối.
 - Email thông báo (E1 – E7, E9) gửi qua `AsyncEmailService` trên luồng riêng: máy chủ mail chậm hoặc lỗi không làm chậm thao tác và không hoàn tác thay đổi đã lưu; lỗi được ghi log. Nội dung các email ở `service/Emails.java`. Email xác thực đăng ký (E8) vẫn gửi trực tiếp để báo khách khi không gửi được.
 - `SignedInFilter` chặn `/account/profile`, `/account/password` (mọi tài khoản đã đăng nhập); `CustomerAreaFilter` chặn `/account/addresses`, `/vouchers` và các trang mua hàng.
+- `StaffAreaFilter`: `/staff/*` cho nhân viên và quản lý, `/admin/*` chỉ cho quản lý; trạng thái khóa được đọc lại ở mỗi request nên nhân viên bị khóa mất quyền ngay (BR-18). Khách hàng nhận 403.
+- Xét hạng (FR-27) là `CustomerService.evaluateLevel`, chạy trong giao dịch của thao tác làm thanh toán chuyển sang PAID hoặc REFUND: tổng = Σ `Order.totalAmount` của các đơn có thanh toán PAID; nâng hạng ngay, chỉ hạ khi `autoDowngrade` bật; hệ thống tự nâng lên LOYAL thì bật lại `autoDowngrade` (Q31).
+- Khi Tomcat dừng hoặc deploy lại ứng dụng, `AppContextListener` tắt luồng dọn kết nối của driver MySQL và gỡ driver JDBC để Tomcat giải phóng ứng dụng cũ.
 - JSP trên Tomcat 11 (EL 6.0) đọc record qua các thành phần của record, không gọi getter hay phương thức khác; giá trị nào trang cần (kể cả giá trị tính ra như `onSale`) phải là thành phần của record.
 
 Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (đơn hàng, tài khoản...) hiện mở trang 404 sau khi đăng nhập. Ảnh sản phẩm mẫu cũng lấy từ template này.
 
 ## Kiểm tra đã chạy
 
-- `mvnw.cmd clean package`: 65 test JUnit đạt, tạo được `target/clothing-shop.war`.
+- `mvnw.cmd clean package`: 76 test JUnit đạt, tạo được `target/clothing-shop.war`.
 - MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
 - Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
 - Tomcat 11.0.24 + MySQL 26.7.0 tạm, nạp `seed-dev.sql`: cửa hàng hiện 7 mặt hàng (mặt hàng không bán bị ẩn); lọc danh mục, tên có dấu, màu, khoảng giá sau giảm cho đúng kết quả; giá nhập sai báo lỗi; giá giảm 15% hiện 150.000 → 128.000; trang chi tiết hiện đánh giá (4,5/5); mặt hàng không bán và `id` không tồn tại trả về 404.
 - Giỏ hàng trên Tomcat + MySQL tạm, với một khách hàng đăng ký thử: chưa đăng nhập mở `/cart` thì sang trang đăng nhập rồi quay lại; thêm vượt tồn kho, dòng hết hàng, mặt hàng không bán đều bị từ chối với thông báo cụ thể; phiên đăng nhập thứ hai (như trình duyệt khác) thấy cùng giỏ; cập nhật nhiều dòng cùng lúc áp dụng dòng hợp lệ và báo dòng sai; dòng bị chuyển sang không bán hoặc tồn kho giảm được đánh dấu và không tính vào tổng; POST thiếu token CSRF bị chặn.
 - Yêu thích trên Tomcat + MySQL tạm: thêm từ trang chi tiết lưu đúng dòng đang chọn, nút đổi thành "Bỏ khỏi danh sách yêu thích"; thêm dòng khác của cùng mặt hàng không tạo bản ghi mới; mặt hàng chuyển sang không bán vẫn hiện, có nhãn "Ngừng bán"; bỏ khỏi danh sách được. Tài khoản nhân viên mở `/cart`, `/wishlist` nhận 403.
 - Tài khoản trên Tomcat + MySQL tạm: chưa đăng nhập mở trang tài khoản thì sang trang đăng nhập; lưu thông tin cá nhân, lưu lại từ form cũ bị từ chối; đổi mật khẩu cần mật khẩu cũ đúng; quên mật khẩu với email viết hoa vẫn nhận link (lấy từ log), đặt mật khẩu mới xong thì link hết hiệu lực; xóa địa chỉ mặc định phải chọn hoặc tạo địa chỉ mặc định mới, CSDL luôn còn đúng một địa chỉ mặc định.
+- Khu quản lý trên Tomcat + MySQL tạm: tài khoản quản lý được tạo từ cấu hình lúc khởi động; tạo nhân viên, tạo trùng tên/email bị từ chối; nhân viên không vào được `/admin/*` (403); khóa nhân viên thì phiên đang mở bị đăng xuất ở request kế tiếp và không đăng nhập lại được, mở khóa thì đăng nhập được; không khóa được quản lý; khách hàng vào `/staff` nhận 403; nâng hạng, nâng từ trang cũ bị từ chối, bật tự hạ hạng thì hạng được xét lại.
 - **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven.
 
 ## Mô hình entity
@@ -211,4 +229,3 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
 ## Chưa làm
 
 - Các chức năng còn lại của đặc tả: đặt hàng, voucher, thanh toán VNPAY, quản lý sản phẩm, quản trị...
-- Tài khoản quản lý tạo sẵn khi triển khai (BR-24).

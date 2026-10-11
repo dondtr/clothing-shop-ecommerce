@@ -48,6 +48,13 @@ public class OrderDetail {
     protected OrderDetail() {
     }
 
+    /** A line of a new order; {@link Order#addDetail} links it to the order. */
+    public OrderDetail(Product product, int quantity, BigDecimal subtotal) {
+        this.product = product;
+        this.quantity = quantity;
+        this.subtotal = subtotal;
+    }
+
     public OrderDetailId getId() {
         return id;
     }

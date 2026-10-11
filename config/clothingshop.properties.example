@@ -24,3 +24,13 @@ mail.smtp.username=
 mail.smtp.password=
 mail.smtp.starttls=true
 mail.from=
+
+# ---- Tài khoản quản lý (BR-24): tạo một lần khi ứng dụng khởi động mà chưa có tài khoản quản lý.
+# Sau lần khởi động đầu tiên nên xóa admin.password khỏi file.
+admin.userName=
+admin.email=
+admin.password=
+admin.fullName=
+admin.phone=
+#admin.gender=OTHER
+#admin.dob=1990-01-01

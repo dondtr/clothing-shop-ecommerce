@@ -77,6 +77,19 @@ public class Order {
     protected Order() {
     }
 
+    /** A new order (FR-12, FR-13): status PENDING, shipping fee and total already computed (FR-15). */
+    public Order(Customer customer, Voucher voucher, LocalDateTime orderDate, String address, String note,
+                 BigDecimal shippingFee, BigDecimal totalAmount) {
+        this.customer = customer;
+        this.voucher = voucher;
+        this.orderDate = orderDate;
+        this.address = address;
+        this.note = note;
+        this.shippingFee = shippingFee;
+        this.totalAmount = totalAmount;
+        this.status = OrderStatus.PENDING;
+    }
+
     public Integer getId() {
         return id;
     }
