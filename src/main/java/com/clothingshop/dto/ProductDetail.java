@@ -25,7 +25,7 @@ public record ProductDetail(String name, ProductCategory category, String descri
     public record Variant(int id, String color, String size, String imgUrl, int stockQuantity) {
     }
 
-    /** A review with the reviewer's full name. */
-    public record ReviewItem(String authorName, int rating, String comment, LocalDateTime createdAt) {
+    /** A review with the reviewer's full name; {@code customerId} lets the author delete it (FR-30). */
+    public record ReviewItem(int id, int customerId, String authorName, int rating, String comment, LocalDateTime createdAt) {
     }
 }

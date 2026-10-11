@@ -19,6 +19,8 @@ import com.clothingshop.service.PasswordResetService;
 import com.clothingshop.service.PaymentService;
 import com.clothingshop.service.PendingRegistrationStore;
 import com.clothingshop.service.ProfileService;
+import com.clothingshop.service.ReturnService;
+import com.clothingshop.service.ReviewService;
 import com.clothingshop.service.Scheduler;
 import com.clothingshop.service.VnpayClient;
 import com.clothingshop.service.VnpayGateway;
@@ -86,6 +88,8 @@ public class AppContextListener implements ServletContextListener {
         register(context, orders);
         DeliveryService delivery = new DeliveryService(notifications, links, clock);
         register(context, delivery);
+        register(context, new ReturnService(payments, notifications, clock));
+        register(context, new ReviewService(clock));
         register(context, new WishlistService(clock));
         register(context, new CustomerService());
         EmployeeService employees = new EmployeeService(clock);

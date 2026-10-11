@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
  * ({@link SignedInFilter}).
  */
 @WebFilter({"/cart", "/cart/*", "/wishlist", "/wishlist/*", "/checkout", "/checkout/*", "/orders", "/orders/*",
-        "/account/addresses", "/account/addresses/*", "/vouchers"})
+        "/account/addresses", "/account/addresses/*", "/vouchers", "/reviews/*"})
 public class CustomerAreaFilter extends HttpFilter {
 
     private static final long serialVersionUID = 1L;
