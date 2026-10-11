@@ -1,0 +1,64 @@
+<%-- Phần dùng chung của trang chi tiết đơn (khách hàng và nhân viên). Biến: o (OrderDetailView) --%>
+<div class="row">
+  <div class="col-md-6 mb-3">
+    <div class="border rounded p-3 h-100">
+      <h3 class="h6 text-uppercase text-muted">Giao hàng</h3>
+      <p class="mb-1">Người nhận: <strong><c:out value="${o.customerName}"/></strong> · <c:out value="${o.customerPhone}"/></p>
+      <p class="mb-1">Địa chỉ: <c:out value="${o.address}"/></p>
+      <c:if test="${not empty o.note}"><p class="mb-1">Ghi chú: <c:out value="${o.note}"/></p></c:if>
+      <p class="mb-0 small text-muted">Đặt lúc ${f:dateTime(o.orderDate)}
+        <c:if test="${not empty o.shippedAt}"> · Bàn giao vận chuyển ${f:dateTime(o.shippedAt)}</c:if>
+        <c:if test="${not empty o.deliveredAt}"> · Giao thành công ${f:dateTime(o.deliveredAt)}</c:if></p>
+    </div>
+  </div>
+  <div class="col-md-6 mb-3">
+    <div class="border rounded p-3 h-100">
+      <h3 class="h6 text-uppercase text-muted">Thanh toán</h3>
+      <p class="mb-1">${o.method.label}</p>
+      <p class="mb-1"><t:status value="${o.paymentStatus}"/>
+        <c:if test="${not empty o.paidAt}"><small class="text-muted ml-1">lúc ${f:dateTime(o.paidAt)}</small></c:if></p>
+      <c:if test="${not empty o.transactionNo}"><p class="mb-1 small text-muted">Mã giao dịch VNPAY: <c:out value="${o.transactionNo}"/></p></c:if>
+      <c:if test="${not empty o.voucherCode}"><p class="mb-0 small">Voucher: <c:out value="${o.voucherCode}"/></p></c:if>
+    </div>
+  </div>
+</div>
+
+<div class="table-responsive mb-3">
+  <table class="table table-bordered bg-white">
+    <thead class="thead-light"><tr><th>Sản phẩm</th><th class="text-right">Đơn giá</th><th class="text-center">SL</th><th class="text-right">Thành tiền</th></tr></thead>
+    <tbody>
+      <c:forEach items="${o.lines}" var="l">
+        <tr>
+          <td><img src="${fn:escapeXml(f:imageUrl(ctx, l.imgUrl))}" alt="" style="width: 44px; height: 44px; object-fit: cover;" class="rounded mr-2">
+            <c:out value="${l.name}"/> <small class="text-muted">(<c:out value="${l.color}"/>, <c:out value="${l.size}"/>)</small></td>
+          <td class="text-right">${f:vnd(l.unitPrice)}</td>
+          <td class="text-center">${l.quantity}</td>
+          <td class="text-right">${f:vnd(l.subtotal)}</td>
+        </tr>
+      </c:forEach>
+    </tbody>
+    <tfoot>
+      <tr><td colspan="3" class="text-right">Tiền sản phẩm</td><td class="text-right">${f:vnd(o.productAmount)}</td></tr>
+      <tr><td colspan="3" class="text-right">Giảm giá voucher</td><td class="text-right">−${f:vnd(o.discount)}</td></tr>
+      <tr><td colspan="3" class="text-right">Phí vận chuyển</td><td class="text-right">${f:vnd(o.shippingFee)}</td></tr>
+      <tr><td colspan="3" class="text-right text-black"><strong>Tổng tiền</strong></td><td class="text-right text-primary"><strong>${f:vnd(o.totalAmount)}</strong></td></tr>
+    </tfoot>
+  </table>
+</div>
+
+<c:if test="${not empty o.issue}">
+  <div class="alert ${o.issue.status == 'OPEN' ? 'alert-warning' : 'alert-light border'}">
+    <strong>Báo chưa nhận được hàng</strong> lúc ${f:dateTime(o.issue.reportedAt)}: <t:status value="${o.issue.status}"/>
+    <c:if test="${not empty o.issue.resolution}"> · ${o.issue.resolution.label}</c:if>
+    <c:if test="${not empty o.issue.resolvedAt}"> · ${f:dateTime(o.issue.resolvedAt)}</c:if>
+    <c:if test="${not empty o.issue.resolvedBy}"> · <c:out value="${o.issue.resolvedBy}"/></c:if>
+  </div>
+</c:if>
+<c:if test="${not empty o.returnRequest}">
+  <div class="alert alert-light border">
+    <strong>Yêu cầu trả hàng</strong> lúc ${f:dateTime(o.returnRequest.requestedAt)}: <t:status value="${o.returnRequest.status}"/>
+    <br><small>Lý do: <c:out value="${o.returnRequest.reason}"/></small>
+    <c:if test="${not empty o.returnRequest.handledAt}"><br><small class="text-muted">Xử lý lúc ${f:dateTime(o.returnRequest.handledAt)}
+      <c:if test="${not empty o.returnRequest.handledBy}"> bởi <c:out value="${o.returnRequest.handledBy}"/></c:if></small></c:if>
+  </div>
+</c:if>
