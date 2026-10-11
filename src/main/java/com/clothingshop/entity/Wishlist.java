@@ -1,5 +1,6 @@
 package com.clothingshop.entity;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -10,6 +11,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -37,6 +39,11 @@ public class Wishlist {
             inverseJoinColumns = @JoinColumn(name = "productId"))
     private Set<Product> products = new HashSet<>();
 
+    /** Optimistic locking version (column {@code version}); incremented by Hibernate on every update. */
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     protected Wishlist() {
     }
 
@@ -54,5 +61,9 @@ public class Wishlist {
 
     public Set<Product> getProducts() {
         return products;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

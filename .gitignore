@@ -34,3 +34,7 @@ logs/
 *.local.properties
 setenv.bat
 setenv.sh
+config/*.properties
+!config/*.properties.example
+*.p12
+*.jks
