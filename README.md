@@ -34,24 +34,27 @@ clothing-shop-ecommerce/
 ├── pom.xml
 ├── config/                                 Mẫu cấu hình local và Aiven (*.properties.example)
 ├── database/schema.sql                     Tạo CSDL và bảng theo ERD (sửa lần 4)
+├── database/seed-dev.sql                   Dữ liệu mẫu (sản phẩm, giảm giá, đánh giá), chỉ dùng trên máy local
 └── src/main/
     ├── java/com/clothingshop/
-    │   ├── controller/   Servlet (trang chủ, đăng ký, xác thực email, đăng nhập, đăng xuất), AppContextListener
-    │   ├── service/      AccountService (FR-01, FR-02), PendingRegistrationStore, EmailService (SMTP / ghi log)
-    │   ├── dao/          UserDao: truy cập dữ liệu bằng JPA EntityManager
-    │   ├── dto/          AuthUser (người dùng đã đăng nhập), RegistrationForm, FlashMessage
+    │   ├── controller/   Servlet (trang chủ, đăng ký, xác thực email, đăng nhập, đăng xuất, cửa hàng, chi tiết sản phẩm), AppContextListener
+    │   ├── service/      AccountService (FR-01, FR-02), CatalogService (FR-07, FR-08), PendingRegistrationStore, EmailService (SMTP / ghi log)
+    │   ├── dao/          UserDao, ProductDao, DiscountDao, ReviewDao: truy cập dữ liệu bằng JPA EntityManager
+    │   ├── dto/          AuthUser (người dùng đã đăng nhập), RegistrationForm, FlashMessage, ProductFilter, ProductSummary, ProductPage, ProductDetail
     │   ├── filter/       CsrfFilter: chống giả mạo request cho mọi form POST
     │   ├── exception/    ValidationException (lỗi theo từng ô), BusinessException
     │   ├── logging/      (để dành)
     │   ├── entity/       Entity JPA và enum theo ERD
-    │   └── util/         AppConfig, JpaUtil, PasswordHasher (PBKDF2), SignedToken (HMAC), WebUtil
+    │   └── util/         AppConfig, JpaUtil, PasswordHasher (PBKDF2), SignedToken (HMAC), WebUtil, Money (làm tròn tiền), ViewFunctions (định dạng cho JSP)
     ├── resources/
     │   ├── META-INF/persistence.xml
     │   └── logback.xml   Log ra console, mức INFO
     └── webapp/
         ├── assets/       CSS, JS, font, ảnh của template Shoppers
         └── WEB-INF/
-            ├── views/    JSP (common: header, footer; auth: đăng ký, đăng nhập; error)
+            ├── views/    JSP (common: header, footer; auth: đăng ký, đăng nhập; shop: cửa hàng, chi tiết sản phẩm; error)
+            ├── tags/     product-card.tag: ô sản phẩm dùng lại ở nhiều trang
+            ├── shop.tld  Hàm định dạng dùng trong JSP với tiền tố f (f:vnd, f:stars, f:dateTime...)
             └── web.xml
 src/test/java/            Test JUnit (chạy trên H2 trong bộ nhớ)
 ```
@@ -91,7 +94,12 @@ mysql -u root -p < database/schema.sql
 # Nên tạo một tài khoản riêng cho ứng dụng thay vì dùng root (chạy trong mysql):
 #   CREATE USER 'clothing_app'@'localhost' IDENTIFIED BY '<mật khẩu>';
 #   GRANT SELECT, INSERT, UPDATE, DELETE ON clothing_shop.* TO 'clothing_app'@'localhost';
+
+# Dữ liệu mẫu để chạy thử (chỉ trên máy local, không chạy trên Aiven; chạy một lần sau schema.sql)
+mysql -u root -p --default-character-set=utf8mb4 < database/seed-dev.sql
 ```
+
+`seed-dev.sql` có 7 mặt hàng đang bán và 1 mặt hàng không bán, gồm các trường hợp: đang giảm giá, giảm giá chưa bắt đầu, giảm giá đã kết thúc, hết hàng một vài dòng, hết hàng mọi dòng. Hai khách hàng mẫu chỉ để làm người viết đánh giá và không đăng nhập được (mật khẩu không phải chuỗi băm hợp lệ); muốn thử mua hàng thì tự đăng ký tài khoản.
 
 ### 2. Cấu hình kết nối
 
@@ -146,20 +154,26 @@ Tomcat chạy dưới dạng Windows service không nhận biến môi trường
 | `/register/verify?token=...` | Link trong email E8: hiệu lực 24 giờ, dùng một lần; tạo `User` + `Customer` (hạng CASUAL) trong một giao dịch |
 | `/login` | Đăng nhập bằng tên đăng nhập hoặc email (FR-02); nhân viên bị khóa không đăng nhập được |
 | `/logout` | Đăng xuất (chỉ nhận POST) |
+| `/shop` | Cửa hàng (FR-07): các mặt hàng đang bán, lọc theo danh mục (`category`), tên (`q`, không phân biệt hoa thường), khoảng giá sau giảm (`minPrice`, `maxPrice`), màu (`color`); 12 mặt hàng mỗi trang (`page`), mới nhất trước; nhãn "Hết hàng" khi mọi dòng hết tồn kho |
+| `/product?id=...` | Chi tiết mặt hàng (FR-08): `id` là một dòng bất kỳ của mặt hàng; chọn màu + kích thước để xem ảnh và tồn kho của dòng đó; điểm trung bình và đánh giá của mọi dòng; mặt hàng không bán trả về 404 |
 
 Ghi chú kỹ thuật:
 - Đăng ký chưa xác thực được giữ trong bộ nhớ server, không ghi CSDL; mất khi khởi động lại server (Q35, Q50).
 - Mật khẩu băm bằng PBKDF2-HMAC-SHA256 có muối, 600.000 vòng (có sẵn trong JDK). Link trong email ký bằng HMAC-SHA256 với `app.secret`.
 - Mọi form POST có token CSRF; đăng nhập đổi session id; cookie phiên `HttpOnly`, không đưa session id lên URL.
 - Thông báo sai thông tin đăng nhập luôn giống nhau, không cho biết tài khoản có tồn tại hay không.
+- Mặt hàng là các dòng `Product` cùng tên (so sánh không phân biệt hoa thường). Giá sau giảm = `basePrice` trừ % của đợt giảm giá đang hiệu lực (startDate ≤ hiện tại ≤ endDate), làm tròn đến hàng nghìn, từ 500 đồng làm tròn lên (`Money`, `Product.getCurrentPrice`, `DiscountDao.findAvailable`; giỏ hàng và đặt hàng dùng lại).
+- Cửa hàng nạp các dòng đang bán rồi gom và lọc theo giá trong bộ nhớ, vì lọc theo giá sau giảm phụ thuộc đợt giảm giá đang hiệu lực. Với vài nghìn dòng thì vẫn nhẹ; nếu dữ liệu lớn hơn nhiều thì chuyển việc gom nhóm và phân trang xuống SQL.
+- JSP trên Tomcat 11 (EL 6.0) đọc record qua các thành phần của record, không gọi getter hay phương thức khác; giá trị nào trang cần (kể cả giá trị tính ra như `onSale`) phải là thành phần của record.
 
-Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (cửa hàng, giỏ hàng, đơn hàng...) hiện mở trang 404.
+Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (giỏ hàng, đơn hàng...) hiện mở trang 404. Ảnh sản phẩm mẫu cũng lấy từ template này.
 
 ## Kiểm tra đã chạy
 
-- `mvnw.cmd clean package`: 22 test JUnit đạt, tạo được `target/clothing-shop.war`.
+- `mvnw.cmd clean package`: 34 test JUnit đạt, tạo được `target/clothing-shop.war`.
 - MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
 - Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
+- Tomcat 11.0.24 + MySQL 26.7.0 tạm, nạp `seed-dev.sql`: cửa hàng hiện 7 mặt hàng (mặt hàng không bán bị ẩn); lọc danh mục, tên có dấu, màu, khoảng giá sau giảm cho đúng kết quả; giá nhập sai báo lỗi; giá giảm 15% hiện 150.000 → 128.000; trang chi tiết hiện đánh giá (4,5/5); mặt hàng không bán và `id` không tồn tại trả về 404.
 - **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven.
 
 ## Mô hình entity
@@ -179,5 +193,5 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
 
 ## Chưa làm
 
-- Các chức năng còn lại của đặc tả (FR-03 trở đi): quên mật khẩu, thông tin cá nhân, địa chỉ, sản phẩm, giỏ hàng, đặt hàng, thanh toán VNPAY, quản trị...
-- Tài khoản quản lý tạo sẵn khi triển khai (BR-24); dữ liệu mẫu.
+- Các chức năng còn lại của đặc tả: quên mật khẩu, thông tin cá nhân, địa chỉ (FR-03 → FR-06), giỏ hàng, yêu thích, đặt hàng, thanh toán VNPAY, quản lý sản phẩm, quản trị...
+- Tài khoản quản lý tạo sẵn khi triển khai (BR-24).

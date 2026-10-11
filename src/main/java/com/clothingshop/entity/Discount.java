@@ -46,6 +46,18 @@ public class Discount {
     protected Discount() {
     }
 
+    public Discount(Product product, BigDecimal discountValue, LocalDateTime startDate, LocalDateTime endDate) {
+        this.product = product;
+        this.discountValue = discountValue;
+        this.startDate = startDate;
+        this.endDate = endDate;
+    }
+
+    /** Whether the discount is in effect at {@code now}: startDate ≤ now ≤ endDate. */
+    public boolean isAvailable(LocalDateTime now) {
+        return !now.isBefore(startDate) && !now.isAfter(endDate);
+    }
+
     public Integer getId() {
         return id;
     }
