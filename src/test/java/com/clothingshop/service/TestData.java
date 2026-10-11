@@ -1,6 +1,8 @@
 package com.clothingshop.service;
 
 import com.clothingshop.entity.Customer;
+import com.clothingshop.entity.DiscountType;
+import com.clothingshop.entity.EligibleCustomer;
 import com.clothingshop.entity.Employee;
 import com.clothingshop.entity.EmployeeRole;
 import com.clothingshop.entity.Gender;
@@ -11,6 +13,8 @@ import com.clothingshop.entity.PaymentMethod;
 import com.clothingshop.entity.PaymentStatus;
 import com.clothingshop.entity.Product;
 import com.clothingshop.entity.ProductCategory;
+import com.clothingshop.entity.Voucher;
+import com.clothingshop.entity.VoucherPolicy;
 import com.clothingshop.util.JpaUtil;
 import com.clothingshop.util.PasswordHasher;
 import java.math.BigDecimal;
@@ -83,5 +87,31 @@ final class TestData {
                     .getSingleResult().setStatus(status);
             return null;
         });
+    }
+
+    /** A voucher valid from {@code NOW - 1 day} to {@code NOW + 30 days}. */
+    static String voucher(DiscountType type, String value, int quantity, EligibleCustomer eligible, String min, String max) {
+        return voucher(type, value, quantity, eligible, min, max, NOW.minusDays(1), NOW.plusDays(30));
+    }
+
+    static String voucher(DiscountType type, String value, int quantity, EligibleCustomer eligible, String min, String max,
+                          LocalDateTime start, LocalDateTime end) {
+        String code = unique("V").toUpperCase();
+        JpaUtil.inTransaction(em -> {
+            Voucher v = new Voucher(code);
+            v.setDiscountType(type);
+            v.setDiscountValue(new BigDecimal(value));
+            v.setQuantity(quantity);
+            VoucherPolicy policy = new VoucherPolicy();
+            policy.setEligibleCustomer(eligible);
+            policy.setMinOrderValue(new BigDecimal(min));
+            policy.setMaxDiscount(max == null ? null : new BigDecimal(max));
+            policy.setStartDate(start);
+            policy.setEndDate(end);
+            v.setPolicy(policy);
+            em.persist(v);
+            return null;
+        });
+        return code;
     }
 }

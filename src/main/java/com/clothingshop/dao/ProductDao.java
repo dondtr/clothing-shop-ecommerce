@@ -79,6 +79,31 @@ public class ProductDao {
                 .getResultList();
     }
 
+    /**
+     * Product.updateStock(−n): takes {@code quantity} from the row only when that much is left, in one conditional UPDATE
+     * so that concurrent orders cannot sell more than the stock (section 10). The version is increased as well, so
+     * optimistic locking still sees the change (section 3.1).
+     *
+     * @return {@code false} when the stock was not enough (nothing changed)
+     */
+    public boolean decreaseStock(int productId, int quantity) {
+        return em.createQuery("update Product p set p.stockQuantity = p.stockQuantity - :q, p.version = p.version + 1"
+                        + " where p.id = :id and p.stockQuantity >= :q")
+                .setParameter("q", quantity).setParameter("id", productId).executeUpdate() == 1;
+    }
+
+    /** Product.updateStock(+n): gives stock back (order cancelled, return approved). */
+    public void increaseStock(int productId, int quantity) {
+        em.createQuery("update Product p set p.stockQuantity = p.stockQuantity + :q, p.version = p.version + 1 where p.id = :id")
+                .setParameter("q", quantity).setParameter("id", productId).executeUpdate();
+    }
+
+    /** Stock read from the database, bypassing rows already loaded in this persistence context. */
+    public int stockOf(int productId) {
+        return em.createQuery("select p.stockQuantity from Product p where p.id = :id", Integer.class)
+                .setParameter("id", productId).getResultStream().findFirst().orElse(0);
+    }
+
     /** Makes {@code %} and {@code _} typed by the user match literally. */
     private static String escapeLike(String value) {
         return value.replace("!", "!!").replace("%", "!%").replace("_", "!_");

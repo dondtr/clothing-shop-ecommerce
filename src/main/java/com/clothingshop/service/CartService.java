@@ -12,6 +12,7 @@ import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +93,22 @@ public class CartService {
                 throw new BusinessException(label + " không còn trong giỏ hàng.");
             }
             cart.updateQuantity(productId, quantity);
+            return null;
+        });
+    }
+
+    /**
+     * The cart as stored on the server (product row id → quantity). Checkout builds the order from it, never from values
+     * sent by the browser (section 3.4).
+     */
+    public Map<Integer, Integer> lines(int userId) {
+        return store.lines(userId);
+    }
+
+    /** Cart.removeItem() for the rows just ordered (FR-12 step 5, FR-13 step 4). */
+    public void removeItems(int userId, Collection<Integer> productIds) {
+        store.update(userId, cart -> {
+            productIds.forEach(cart::removeItem);
             return null;
         });
     }

@@ -176,6 +176,8 @@ Hệ thống có đúng một tài khoản quản lý, tạo sẵn khi triển k
 | `/shop` | Cửa hàng (FR-07): các mặt hàng đang bán, lọc theo danh mục (`category`), tên (`q`, không phân biệt hoa thường), khoảng giá sau giảm (`minPrice`, `maxPrice`), màu (`color`); 12 mặt hàng mỗi trang (`page`), mới nhất trước; nhãn "Hết hàng" khi mọi dòng hết tồn kho |
 | `/product?id=...` | Chi tiết mặt hàng (FR-08): `id` là một dòng bất kỳ của mặt hàng; chọn màu + kích thước để xem ảnh và tồn kho của dòng đó; điểm trung bình và đánh giá của mọi dòng; mặt hàng không bán trả về 404. Khách hàng đã đăng nhập có nút "Thêm vào giỏ hàng" (dòng hết hàng không thêm được) và "Thêm vào danh sách yêu thích" |
 | `/cart` | Giỏ hàng (FR-09): thêm từ trang chi tiết (`POST /cart/add`), đổi số lượng (`POST /cart/update`), xóa dòng (`POST /cart/remove`); đơn giá theo giá sau giảm hiện tại; dòng ngừng bán, hết hàng hoặc vượt tồn kho được đánh dấu và không tính vào tổng |
+| `/checkout` | Đặt hàng (FR-12, FR-14, FR-15): chọn dòng trong giỏ, địa chỉ đã lưu (chọn sẵn mặc định) hoặc địa chỉ mới (được lưu vào sổ địa chỉ), ghi chú tối đa 500 ký tự, mã voucher, phương thức thanh toán; xem trước tiền sản phẩm, tiền giảm voucher, phí vận chuyển, tổng tiền; "Xác nhận mua hàng" tạo đơn COD |
+| `/vouchers` | Voucher khách hàng dùng được ngay (FR-39): còn lượt, đang hiệu lực, dành cho mọi khách hàng hoặc đúng hạng |
 | `/wishlist` | Danh sách yêu thích (FR-10): thêm, bỏ từ trang chi tiết (`POST /wishlist/add`, `/wishlist/remove`); lần thêm đầu tạo `Wishlist`; lưu dòng khách đang xem nhưng mỗi mặt hàng chỉ một lần; mặt hàng không còn bán vẫn nằm trong danh sách, được đánh dấu và không mở trang mua |
 
 Ghi chú kỹ thuật:
@@ -195,13 +197,17 @@ Ghi chú kỹ thuật:
 - `StaffAreaFilter`: `/staff/*` cho nhân viên và quản lý, `/admin/*` chỉ cho quản lý; trạng thái khóa được đọc lại ở mỗi request nên nhân viên bị khóa mất quyền ngay (BR-18). Khách hàng nhận 403.
 - Xét hạng (FR-27) là `CustomerService.evaluateLevel`, chạy trong giao dịch của thao tác làm thanh toán chuyển sang PAID hoặc REFUND: tổng = Σ `Order.totalAmount` của các đơn có thanh toán PAID; nâng hạng ngay, chỉ hạ khi `autoDowngrade` bật; hệ thống tự nâng lên LOYAL thì bật lại `autoDowngrade` (Q31).
 - Khi Tomcat dừng hoặc deploy lại ứng dụng, `AppContextListener` tắt luồng dọn kết nối của driver MySQL và gỡ driver JDBC để Tomcat giải phóng ứng dụng cũ.
+- Đặt hàng tính lại mọi thứ trong một giao dịch (Order.place()): dòng còn bán, tồn kho trừ bằng `UPDATE … SET stockQuantity = stockQuantity − n, version = version + 1 WHERE stockQuantity ≥ n` theo thứ tự id (nhiều khách đặt cùng lúc không bán vượt, không khóa chéo nhau), voucher kiểm tra lại và trừ một lượt bằng câu lệnh có điều kiện, rồi tạo `Order`, `OrderDetail` (subtotal = giá sau giảm × số lượng), `Payment` (COD, UNPAID). Lỗi ở bước nào thì không có gì được lưu và khách nhận thông báo cụ thể.
+- Đơn được dựng từ giỏ lưu trên server, không tin dữ liệu trình duyệt gửi (mục 3.4). Trang đặt hàng gửi kèm tổng tiền khách đã xem; tổng tính lúc tạo đơn khác (giá, giảm giá, voucher vừa đổi) thì không tạo đơn và hiện tổng mới để khách xác nhận lại.
+- Tiền giảm voucher (BR-07): phần trăm thì làm tròn đến hàng nghìn rồi giới hạn bởi `maxDiscount`; số tiền cố định thì bằng giá trị voucher; không vượt tiền sản phẩm. Phí vận chuyển 20.000 ₫ (đổi được bằng `shop.shippingFee`).
+- Lượt voucher cập nhật bằng SQL thuần trên bảng `Voucher`: entity `Voucher` gồm 2 bảng (bảng phụ `VoucherPolicy`), câu UPDATE hàng loạt bằng JPQL trên entity như vậy có thể khiến Hibernate tạo bảng tạm, mà tài khoản CSDL của ứng dụng không có quyền.
 - JSP trên Tomcat 11 (EL 6.0) đọc record qua các thành phần của record, không gọi getter hay phương thức khác; giá trị nào trang cần (kể cả giá trị tính ra như `onSale`) phải là thành phần của record.
 
 Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (đơn hàng, tài khoản...) hiện mở trang 404 sau khi đăng nhập. Ảnh sản phẩm mẫu cũng lấy từ template này.
 
 ## Kiểm tra đã chạy
 
-- `mvnw.cmd clean package`: 76 test JUnit đạt, tạo được `target/clothing-shop.war`.
+- `mvnw.cmd clean package`: 84 test JUnit đạt (gồm hai khách cùng mua món hàng cuối: chỉ một đơn được tạo, tồn kho không âm), tạo được `target/clothing-shop.war`.
 - MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
 - Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
 - Tomcat 11.0.24 + MySQL 26.7.0 tạm, nạp `seed-dev.sql`: cửa hàng hiện 7 mặt hàng (mặt hàng không bán bị ẩn); lọc danh mục, tên có dấu, màu, khoảng giá sau giảm cho đúng kết quả; giá nhập sai báo lỗi; giá giảm 15% hiện 150.000 → 128.000; trang chi tiết hiện đánh giá (4,5/5); mặt hàng không bán và `id` không tồn tại trả về 404.
@@ -209,6 +215,7 @@ Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 
 - Yêu thích trên Tomcat + MySQL tạm: thêm từ trang chi tiết lưu đúng dòng đang chọn, nút đổi thành "Bỏ khỏi danh sách yêu thích"; thêm dòng khác của cùng mặt hàng không tạo bản ghi mới; mặt hàng chuyển sang không bán vẫn hiện, có nhãn "Ngừng bán"; bỏ khỏi danh sách được. Tài khoản nhân viên mở `/cart`, `/wishlist` nhận 403.
 - Tài khoản trên Tomcat + MySQL tạm: chưa đăng nhập mở trang tài khoản thì sang trang đăng nhập; lưu thông tin cá nhân, lưu lại từ form cũ bị từ chối; đổi mật khẩu cần mật khẩu cũ đúng; quên mật khẩu với email viết hoa vẫn nhận link (lấy từ log), đặt mật khẩu mới xong thì link hết hiệu lực; xóa địa chỉ mặc định phải chọn hoặc tạo địa chỉ mặc định mới, CSDL luôn còn đúng một địa chỉ mặc định.
 - Khu quản lý trên Tomcat + MySQL tạm: tài khoản quản lý được tạo từ cấu hình lúc khởi động; tạo nhân viên, tạo trùng tên/email bị từ chối; nhân viên không vào được `/admin/*` (403); khóa nhân viên thì phiên đang mở bị đăng xuất ở request kế tiếp và không đăng nhập lại được, mở khóa thì đăng nhập được; không khóa được quản lý; khách hàng vào `/staff` nhận 403; nâng hạng, nâng từ trang cũ bị từ chối, bật tự hạ hạng thì hạng được xét lại.
+- Đặt hàng trên Tomcat + MySQL tạm: tổng tiền đúng FR-15 (376.000 − voucher 10% làm tròn 38.000 + 20.000 = 358.000); voucher sai hạng, hết lượt, chưa đến ngày, hết hạn, không tồn tại đều báo đúng lý do; thiếu địa chỉ báo lỗi từng ô; tổng tiền đã đổi thì không tạo đơn; đặt thành công thì CSDL có đơn, chi tiết, thanh toán COD UNPAID, tồn kho và lượt voucher bị trừ, địa chỉ mới được lưu, giỏ được dọn.
 - **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven.
 
 ## Mô hình entity
@@ -228,4 +235,4 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
 
 ## Chưa làm
 
-- Các chức năng còn lại của đặc tả: đặt hàng, voucher, thanh toán VNPAY, quản lý sản phẩm, quản trị...
+- Các chức năng còn lại của đặc tả: thanh toán VNPAY, quản lý sản phẩm, quản trị...
