@@ -37,11 +37,11 @@ clothing-shop-ecommerce/
 ├── database/seed-dev.sql                   Dữ liệu mẫu (sản phẩm, giảm giá, đánh giá), chỉ dùng trên máy local
 └── src/main/
     ├── java/com/clothingshop/
-    │   ├── controller/   Servlet (trang chủ, đăng ký, xác thực email, đăng nhập, đăng xuất, cửa hàng, chi tiết sản phẩm), AppContextListener
-    │   ├── service/      AccountService (FR-01, FR-02), CatalogService (FR-07, FR-08), PendingRegistrationStore, EmailService (SMTP / ghi log)
+    │   ├── controller/   Servlet (trang chủ, đăng ký, xác thực email, đăng nhập, đăng xuất, cửa hàng, chi tiết sản phẩm, giỏ hàng), AppContextListener
+    │   ├── service/      AccountService (FR-01, FR-02), CatalogService (FR-07, FR-08), CartService + Cart + CartStore (FR-09), PendingRegistrationStore, EmailService (SMTP / ghi log)
     │   ├── dao/          UserDao, ProductDao, DiscountDao, ReviewDao: truy cập dữ liệu bằng JPA EntityManager
-    │   ├── dto/          AuthUser (người dùng đã đăng nhập), RegistrationForm, FlashMessage, ProductFilter, ProductSummary, ProductPage, ProductDetail
-    │   ├── filter/       CsrfFilter: chống giả mạo request cho mọi form POST
+    │   ├── dto/          AuthUser (người dùng đã đăng nhập), RegistrationForm, FlashMessage, ProductFilter, ProductSummary, ProductPage, ProductDetail, CartView
+    │   ├── filter/       CsrfFilter: chống giả mạo request cho mọi form POST; CustomerAreaFilter: trang chỉ dành cho khách hàng đã đăng nhập
     │   ├── exception/    ValidationException (lỗi theo từng ô), BusinessException
     │   ├── logging/      (để dành)
     │   ├── entity/       Entity JPA và enum theo ERD
@@ -52,7 +52,7 @@ clothing-shop-ecommerce/
     └── webapp/
         ├── assets/       CSS, JS, font, ảnh của template Shoppers
         └── WEB-INF/
-            ├── views/    JSP (common: header, footer; auth: đăng ký, đăng nhập; shop: cửa hàng, chi tiết sản phẩm; error)
+            ├── views/    JSP (common: header, footer; auth: đăng ký, đăng nhập; shop: cửa hàng, chi tiết sản phẩm; cart: giỏ hàng; error)
             ├── tags/     product-card.tag: ô sản phẩm dùng lại ở nhiều trang
             ├── shop.tld  Hàm định dạng dùng trong JSP với tiền tố f (f:vnd, f:stars, f:dateTime...)
             └── web.xml
@@ -155,7 +155,8 @@ Tomcat chạy dưới dạng Windows service không nhận biến môi trường
 | `/login` | Đăng nhập bằng tên đăng nhập hoặc email (FR-02); nhân viên bị khóa không đăng nhập được |
 | `/logout` | Đăng xuất (chỉ nhận POST) |
 | `/shop` | Cửa hàng (FR-07): các mặt hàng đang bán, lọc theo danh mục (`category`), tên (`q`, không phân biệt hoa thường), khoảng giá sau giảm (`minPrice`, `maxPrice`), màu (`color`); 12 mặt hàng mỗi trang (`page`), mới nhất trước; nhãn "Hết hàng" khi mọi dòng hết tồn kho |
-| `/product?id=...` | Chi tiết mặt hàng (FR-08): `id` là một dòng bất kỳ của mặt hàng; chọn màu + kích thước để xem ảnh và tồn kho của dòng đó; điểm trung bình và đánh giá của mọi dòng; mặt hàng không bán trả về 404 |
+| `/product?id=...` | Chi tiết mặt hàng (FR-08): `id` là một dòng bất kỳ của mặt hàng; chọn màu + kích thước để xem ảnh và tồn kho của dòng đó; điểm trung bình và đánh giá của mọi dòng; mặt hàng không bán trả về 404. Khách hàng đã đăng nhập có nút "Thêm vào giỏ hàng" (dòng hết hàng không thêm được) |
+| `/cart` | Giỏ hàng (FR-09): thêm từ trang chi tiết (`POST /cart/add`), đổi số lượng (`POST /cart/update`), xóa dòng (`POST /cart/remove`); đơn giá theo giá sau giảm hiện tại; dòng ngừng bán, hết hàng hoặc vượt tồn kho được đánh dấu và không tính vào tổng |
 
 Ghi chú kỹ thuật:
 - Đăng ký chưa xác thực được giữ trong bộ nhớ server, không ghi CSDL; mất khi khởi động lại server (Q35, Q50).
@@ -164,16 +165,20 @@ Ghi chú kỹ thuật:
 - Thông báo sai thông tin đăng nhập luôn giống nhau, không cho biết tài khoản có tồn tại hay không.
 - Mặt hàng là các dòng `Product` cùng tên (so sánh không phân biệt hoa thường). Giá sau giảm = `basePrice` trừ % của đợt giảm giá đang hiệu lực (startDate ≤ hiện tại ≤ endDate), làm tròn đến hàng nghìn, từ 500 đồng làm tròn lên (`Money`, `Product.getCurrentPrice`, `DiscountDao.findAvailable`; giỏ hàng và đặt hàng dùng lại).
 - Cửa hàng nạp các dòng đang bán rồi gom và lọc theo giá trong bộ nhớ, vì lọc theo giá sau giảm phụ thuộc đợt giảm giá đang hiệu lực. Với vài nghìn dòng thì vẫn nhẹ; nếu dữ liệu lớn hơn nhiều thì chuyển việc gom nhóm và phân trang xuống SQL.
+- Giỏ hàng nằm trong bộ nhớ server theo userId (Q47): mọi trình duyệt đang đăng nhập cùng tài khoản thấy chung một giỏ; mất khi khởi động lại server; giỏ không dùng 30 ngày bị dọn. Mỗi thay đổi trên giỏ của một khách hàng chạy tuần tự (`ConcurrentHashMap.compute`) và áp dụng trên bản sao, lỗi thì giỏ giữ nguyên. `CartStore` là interface để sau này thay bằng Redis (Q59) mà không sửa `CartService`.
+- Số lượng trong giỏ không vượt tồn kho lúc thêm/sửa; tồn kho có thể giảm sau đó nên bước đặt hàng (FR-12) phải kiểm tra lại trong giao dịch.
+- `CustomerAreaFilter` chặn `/cart`, `/wishlist`, `/checkout`, `/orders`, `/account/*`: chưa đăng nhập thì chuyển sang trang đăng nhập rồi quay lại (BR-25); tài khoản nhân viên nhận 403 (BR-27). Chức năng mới thuộc các đường dẫn này không cần tự kiểm tra đăng nhập nữa.
 - JSP trên Tomcat 11 (EL 6.0) đọc record qua các thành phần của record, không gọi getter hay phương thức khác; giá trị nào trang cần (kể cả giá trị tính ra như `onSale`) phải là thành phần của record.
 
-Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (giỏ hàng, đơn hàng...) hiện mở trang 404. Ảnh sản phẩm mẫu cũng lấy từ template này.
+Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (yêu thích, đơn hàng, tài khoản...) hiện mở trang 404 sau khi đăng nhập. Ảnh sản phẩm mẫu cũng lấy từ template này.
 
 ## Kiểm tra đã chạy
 
-- `mvnw.cmd clean package`: 34 test JUnit đạt, tạo được `target/clothing-shop.war`.
+- `mvnw.cmd clean package`: 45 test JUnit đạt, tạo được `target/clothing-shop.war`.
 - MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
 - Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
 - Tomcat 11.0.24 + MySQL 26.7.0 tạm, nạp `seed-dev.sql`: cửa hàng hiện 7 mặt hàng (mặt hàng không bán bị ẩn); lọc danh mục, tên có dấu, màu, khoảng giá sau giảm cho đúng kết quả; giá nhập sai báo lỗi; giá giảm 15% hiện 150.000 → 128.000; trang chi tiết hiện đánh giá (4,5/5); mặt hàng không bán và `id` không tồn tại trả về 404.
+- Giỏ hàng trên Tomcat + MySQL tạm, với một khách hàng đăng ký thử: chưa đăng nhập mở `/cart` thì sang trang đăng nhập rồi quay lại; thêm vượt tồn kho, dòng hết hàng, mặt hàng không bán đều bị từ chối với thông báo cụ thể; phiên đăng nhập thứ hai (như trình duyệt khác) thấy cùng giỏ; cập nhật nhiều dòng cùng lúc áp dụng dòng hợp lệ và báo dòng sai; dòng bị chuyển sang không bán hoặc tồn kho giảm được đánh dấu và không tính vào tổng; POST thiếu token CSRF bị chặn.
 - **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven.
 
 ## Mô hình entity
@@ -193,5 +198,5 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
 
 ## Chưa làm
 
-- Các chức năng còn lại của đặc tả: quên mật khẩu, thông tin cá nhân, địa chỉ (FR-03 → FR-06), giỏ hàng, yêu thích, đặt hàng, thanh toán VNPAY, quản lý sản phẩm, quản trị...
+- Các chức năng còn lại của đặc tả: quên mật khẩu, thông tin cá nhân, địa chỉ (FR-03 → FR-06), yêu thích, đặt hàng, thanh toán VNPAY, quản lý sản phẩm, quản trị...
 - Tài khoản quản lý tạo sẵn khi triển khai (BR-24).
