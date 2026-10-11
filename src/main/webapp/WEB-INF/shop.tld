@@ -29,6 +29,16 @@
     <function-signature>java.lang.String dateTime(java.time.LocalDateTime)</function-signature>
   </function>
   <function>
+    <name>vndShort</name>
+    <function-class>com.clothingshop.util.ViewFunctions</function-class>
+    <function-signature>java.lang.String vndShort(java.math.BigDecimal)</function-signature>
+  </function>
+  <function>
+    <name>date</name>
+    <function-class>com.clothingshop.util.ViewFunctions</function-class>
+    <function-signature>java.lang.String date(java.time.LocalDate)</function-signature>
+  </function>
+  <function>
     <name>imageUrl</name>
     <function-class>com.clothingshop.util.ViewFunctions</function-class>
     <function-signature>java.lang.String imageUrl(java.lang.String, java.lang.String)</function-signature>

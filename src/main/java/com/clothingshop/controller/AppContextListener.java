@@ -27,6 +27,7 @@ import com.clothingshop.service.ProfileService;
 import com.clothingshop.service.ReturnService;
 import com.clothingshop.service.ReviewService;
 import com.clothingshop.service.Scheduler;
+import com.clothingshop.service.StatisticsService;
 import com.clothingshop.service.VnpayClient;
 import com.clothingshop.service.VnpayGateway;
 import com.clothingshop.service.VoucherAdminService;
@@ -110,6 +111,7 @@ public class AppContextListener implements ServletContextListener {
         EmployeeService employees = new EmployeeService(clock);
         register(context, employees);
         register(context, new DashboardService());
+        register(context, new StatisticsService(clock));
 
         if (Boolean.parseBoolean(AppConfig.get("scheduler.enabled", "true"))) {
             scheduler = new Scheduler(clock);

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
@@ -15,6 +16,7 @@ import java.util.Locale;
 public final class ViewFunctions {
 
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private ViewFunctions() {
     }
@@ -32,6 +34,26 @@ public final class ViewFunctions {
         return format.format(amount) + " ₫";
     }
 
+    /** Short amount for chart axes: 0, 500k, 1,5tr, 2 tỷ (rounded to one decimal). */
+    public static String vndShort(BigDecimal amount) {
+        if (amount == null) {
+            return "";
+        }
+        BigDecimal thousand = BigDecimal.valueOf(1_000);
+        BigDecimal million = BigDecimal.valueOf(1_000_000);
+        BigDecimal billion = BigDecimal.valueOf(1_000_000_000);
+        if (amount.abs().compareTo(thousand) < 0) {
+            return number(amount.setScale(0, RoundingMode.HALF_UP));
+        }
+        if (amount.abs().compareTo(million) < 0) {
+            return number(amount.divide(thousand, 1, RoundingMode.HALF_UP)) + "k";
+        }
+        if (amount.abs().compareTo(billion) < 0) {
+            return number(amount.divide(million, 1, RoundingMode.HALF_UP)) + "tr";
+        }
+        return number(amount.divide(billion, 1, RoundingMode.HALF_UP)) + " tỷ";
+    }
+
     /** A percentage or a rating without useless zeros: 20.00 → "20", 4.50 → "4,5". */
     public static String number(BigDecimal value) {
         return value == null ? "" : value.stripTrailingZeros().toPlainString().replace('.', ',');
@@ -46,6 +68,11 @@ public final class ViewFunctions {
     /** "10/10/2026 08:30" (times are stored in Vietnam time, section 3.1). */
     public static String dateTime(LocalDateTime value) {
         return value == null ? "" : DATE_TIME.format(value);
+    }
+
+    /** "10/10/2026". */
+    public static String date(LocalDate value) {
+        return value == null ? "" : DATE.format(value);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 Ứng dụng web bán quần áo trực tuyến viết bằng Java (Jakarta Servlet/JSP, Hibernate/JPA, MySQL), chạy trên Apache Tomcat 11.
 
-Đã có: nền tảng dự án (Maven, JPA, entity theo ERD sửa lần 4), cấu hình CSDL cho MySQL local và Aiven, giao diện từ template Shoppers, và chức năng **đăng ký tài khoản khách hàng có xác thực email (FR-01)**, **đăng nhập, đăng xuất (FR-02)** theo đặc tả v0.7 và sequence diagram SD04.
+Đã làm đủ các chức năng FR-01 – FR-43 và tác vụ tự động J1 – J7 của đặc tả v0.7: tài khoản, cửa hàng, giỏ hàng, yêu thích, đặt hàng (COD, VNPAY), vòng đời đơn hàng, sự cố giao hàng, trả hàng, đánh giá, quản lý sản phẩm, giảm giá, voucher (thủ công, hằng tháng, ngày lễ), nhân viên, khách hàng và thống kê. Entity theo ERD sửa lần 4; CSDL MySQL local hoặc Aiven; giao diện từ template Shoppers.
 
 ## Công nghệ
 
@@ -20,6 +20,7 @@
 | Apache Tomcat | 11.0.x | |
 | Jakarta Standard Tag Library | API 3.0.2, cài đặt GlassFish 3.0.1 | Tomcat không kèm JSTL |
 | Jakarta Mail | Eclipse Angus Mail 2.0.5 (Jakarta Mail 2.1.5) | Gửi email của đặc tả (E1 – E9) |
+| Jackson Databind | 2.22.3 (kèm `jackson-datatype-jsr310`) | JSON của API VNPAY (truy vấn, hoàn tiền) và file thiết lập voucher tự động |
 | JUnit Jupiter | 6.1.3 (`test`) | Kiểm thử tự động |
 | H2 Database | 2.5.252 (`test`) | CSDL trong bộ nhớ, chỉ dùng khi chạy test |
 
@@ -34,27 +35,34 @@ clothing-shop-ecommerce/
 ├── pom.xml
 ├── config/                                 Mẫu cấu hình local và Aiven (*.properties.example)
 ├── database/schema.sql                     Tạo CSDL và bảng theo ERD (sửa lần 4)
-├── database/seed-dev.sql                   Dữ liệu mẫu (sản phẩm, giảm giá, đánh giá), chỉ dùng trên máy local
+├── database/seed-dev.sql                   Dữ liệu mẫu (sản phẩm, giảm giá, đánh giá, voucher), chỉ dùng trên máy local
 └── src/main/
     ├── java/com/clothingshop/
-    │   ├── controller/   Servlet (trang chủ, đăng ký, xác thực email, đăng nhập, đăng xuất, cửa hàng, chi tiết sản phẩm, giỏ hàng, yêu thích), AppContextListener
-    │   ├── service/      AccountService (FR-01, FR-02), CatalogService (FR-07, FR-08), CartService + Cart + CartStore (FR-09), WishlistService (FR-10), PendingRegistrationStore, EmailService (SMTP / ghi log)
-    │   ├── dao/          UserDao, ProductDao, DiscountDao, ReviewDao, WishlistDao: truy cập dữ liệu bằng JPA EntityManager
-    │   ├── dto/          AuthUser (người dùng đã đăng nhập), RegistrationForm, FlashMessage, ProductFilter, ProductSummary, ProductPage, ProductDetail, CartView, WishlistEntry
-    │   ├── filter/       CsrfFilter: chống giả mạo request cho mọi form POST; CustomerAreaFilter: trang chỉ dành cho khách hàng đã đăng nhập
-    │   ├── exception/    ValidationException (lỗi theo từng ô), BusinessException
+    │   ├── controller/   Servlet theo từng trang (khách hàng; khu quản lý Staff*, *Admin*, Statistics; VNPAY IPN/return; link trong email), AppContextListener (tạo service, lịch J1 – J7, tài khoản quản lý)
+    │   ├── service/      Nghiệp vụ theo nhóm chức năng:
+    │   │                   tài khoản: AccountService, UserRules, PendingRegistrationStore, PasswordResetService, ProfileService, AddressService
+    │   │                   mua hàng: CatalogService, CartService + Cart + CartStore/InMemoryCartStore, WishlistService, CheckoutService, VoucherService
+    │   │                   thanh toán: PaymentService, VnpayGateway (ký/kiểm tra HMAC-SHA512), VnpayClient (API truy vấn, hoàn tiền)
+    │   │                   đơn hàng: OrderQueries, OrderService, DeliveryService, DeliveryLinks, ReturnService, ReviewService
+    │   │                   quản lý: DashboardService, ProductAdminService, DiscountAdminService, DiscountNotifier, VoucherAdminService,
+    │   │                            AutoVoucherService + VoucherSettings/VoucherSettingsStore + Holiday, CustomerService, EmployeeService, StatisticsService
+    │   │                   hạ tầng: Scheduler (J1 – J7), EmailService (SmtpEmailService / LogEmailService), AsyncEmailService, Emails (nội dung E1 – E9)
+    │   ├── dao/          UserDao, ProductDao, DiscountDao, ReviewDao, WishlistDao, OrderDao, VoucherDao: truy cập dữ liệu bằng JPA EntityManager
+    │   ├── dto/          Dữ liệu cho trang và form (AuthUser, FlashMessage, *Form, *View, *Row, ProductPage, CartView, CheckoutView, CustomerDetail, StatisticsReport...)
+    │   ├── filter/       CsrfFilter (mọi form POST), CustomerAreaFilter, SignedInFilter, StaffAreaFilter (phân quyền theo đường dẫn)
+    │   ├── exception/    ValidationException (lỗi theo từng ô), BusinessException, ConflictException (dữ liệu đã bị người khác sửa), PriceChangedException
     │   ├── logging/      (để dành)
     │   ├── entity/       Entity JPA và enum theo ERD
-    │   └── util/         AppConfig, JpaUtil, PasswordHasher (PBKDF2), SignedToken (HMAC), WebUtil, Money (làm tròn tiền), ViewFunctions (định dạng cho JSP)
+    │   └── util/         AppConfig, JpaUtil, PasswordHasher (PBKDF2), SignedToken (HMAC), WebUtil, Money (làm tròn tiền), ViewFunctions (định dạng cho JSP), LunarCalendar (âm lịch)
     ├── resources/
     │   ├── META-INF/persistence.xml
     │   └── logback.xml   Log ra console, mức INFO
     └── webapp/
         ├── assets/       CSS, JS, font, ảnh của template Shoppers
         └── WEB-INF/
-            ├── views/    JSP (common: header, footer; auth: đăng ký, đăng nhập; shop: cửa hàng, chi tiết sản phẩm; cart: giỏ hàng; account: yêu thích; error)
-            ├── tags/     product-card.tag: ô sản phẩm dùng lại ở nhiều trang
-            ├── shop.tld  Hàm định dạng dùng trong JSP với tiền tố f (f:vnd, f:stars, f:dateTime...)
+            ├── views/    JSP: common (header, footer), auth, shop, cart, checkout, account, orders, staff (khu quản lý, khung trang top/bottom.jspf), error
+            ├── tags/     product-card.tag (ô sản phẩm), field.tag (ô nhập kèm lỗi), status.tag (nhãn trạng thái)
+            ├── shop.tld  Hàm định dạng dùng trong JSP với tiền tố f (f:vnd, f:vndShort, f:date, f:dateTime, f:stars...)
             └── web.xml
 src/test/java/            Test JUnit (chạy trên H2 trong bộ nhớ)
 ```
@@ -202,6 +210,7 @@ Thanh toán VNPAY (FR-13) chỉ bật khi có đủ `vnpay.tmnCode` và `vnpay.h
 | `/staff/products` | Sản phẩm (FR-31 – FR-33), cho nhân viên và quản lý: danh sách mặt hàng kể cả không bán; thêm mặt hàng với nhiều biến thể (mỗi biến thể một dòng `Product` mang đủ thông tin chung; tên không trùng mặt hàng khác, giá bội số 1.000, mỗi biến thể có ảnh, không trùng màu + kích thước); sửa thông tin chung trên mọi dòng; mở bán/ngừng bán; thêm biến thể (nhận bản sao các đợt giảm giá chưa kết thúc); sửa ảnh, sửa màu/kích thước khi biến thể chưa bán; cập nhật tồn kho (cộng thêm hoặc đặt thành, không âm). Quản lý xóa biến thể hoặc mặt hàng chưa bán (`/admin/products/*`): xóa kèm giảm giá, chuyển mục yêu thích sang dòng còn lại, bỏ khỏi mọi giỏ hàng |
 | `/admin/discounts?id=...` | Giảm giá sản phẩm (FR-34, quản lý): các đợt và tình trạng; tạo đợt (0 < % ≤ 100, bắt đầu trước kết thúc, không trùng thời gian đợt khác) qua hộp thoại xác nhận kèm toàn bộ thông tin; sửa đợt chưa đến ngày bắt đầu; không xóa |
 | `/admin/vouchers` | Voucher (FR-35, FR-36, quản lý): danh sách kèm chính sách, số lượt còn lại, tình trạng; lọc theo mã, đối tượng, tình trạng. Tạo voucher thủ công (mã chữ không dấu, chữ số, gạch ngang, lưu chữ in hoa, không trùng dạng mã ngày lễ và mã hằng tháng; phần trăm 1 – 100 hoặc số tiền bội số 1.000; mức tối đa chỉ cho phần trăm) qua hộp thoại xác nhận; sửa voucher thủ công chưa đến ngày bắt đầu (không sửa mã); không xóa |
+| `/admin/statistics?from=...&to=...` | Thống kê kinh doanh (FR-43, quản lý), mặc định từ đầu tháng tới hôm nay, chọn nhanh tháng này, tháng trước, 30 ngày qua, năm nay (tối đa 366 ngày): doanh thu, số đơn đã thanh toán, số đơn đặt, số lượng bán ra; biểu đồ cột doanh thu theo ngày (theo tháng khi khoảng từ 63 ngày), rê chuột hoặc Tab để xem số liệu, có dạng bảng; số đơn đặt theo trạng thái; số lượng và doanh thu theo mặt hàng và theo dòng; tồn kho hiện tại theo mặt hàng và theo dòng |
 | `/admin/voucher-settings` | Voucher tự động (FR-37, FR-38, quản lý): thiết lập voucher hằng tháng cho từng hạng (bật/tắt, loại, giá trị, đơn tối thiểu, mức tối đa, số lượng, ngày bắt đầu/kết thúc trong tháng) và 4 chiến dịch ngày lễ (TET, GIOTO theo âm lịch; GPMN 30/04; QK 02/09; phải nhập loại và giá trị trước khi bật); hiện thời gian lần tới của từng dịp |
 | `/staff/returns` | Yêu cầu trả hàng (FR-26): Duyệt (đơn VNPAY hoàn tiền qua VNPAY trước, lỗi thì yêu cầu giữ chờ duyệt; đơn COD hoàn tiền ngoài hệ thống; rồi đơn Đã hủy, thanh toán Đã hoàn tiền, cộng lại tồn kho, hoàn lượt voucher, xét lại hạng, gửi E7) hoặc Từ chối (đơn giữ Giao thành công, gửi E7) |
 | `/staff/delivery-issues` | Báo "Chưa thấy hàng đâu" đang chờ (FR-42 bước 3); xử lý bằng Giao lại hàng (trừ tồn kho thêm một lần, chỉ khi đủ hàng) hoặc Đã giải quyết, nhập lý do và cách giải quyết để gửi trong email E3/E4 (FR-21) |
@@ -239,13 +248,14 @@ Ghi chú kỹ thuật:
 - Ngày Tết và Giỗ Tổ đổi từ âm lịch sang dương lịch bằng thuật toán của Hồ Ngọc Đức (múi giờ GMT+7, `LunarCalendar`), đã kiểm tra với lịch các năm 2023 – 2027, gồm năm có tháng nhuận.
 - File thiết lập voucher được đọc một lần khi khởi động; mỗi lần lưu ghi ra file tạm rồi đổi tên đè file cũ để không hỏng file khi đang ghi; file hỏng thì giữ nguyên để kiểm tra và dùng giá trị mặc định cho đến lần lưu sau.
 - `Scheduler` chạy J1 – J7 trên một luồng nền theo giờ Việt Nam: J7 mỗi phút, các tác vụ còn lại lúc 00:00 hằng ngày; mỗi lần chạy đều ghi log. J2, J3, J5, J6 kiểm tra trước khi làm nên chạy bù một lần sau khi khởi động; J1, J4 không chạy bù vì phải chạy đúng một lần mỗi ngày.
+- Thống kê (FR-43): doanh thu = Σ `Order.totalAmount` (gồm phí vận chuyển) của đơn có thanh toán PAID, lọc theo `paidAt` (Q33), nên đơn đã hoàn tiền (REFUND) không còn được tính; doanh thu và số lượng theo mặt hàng, theo dòng = Σ `OrderDetail.subtotal`, Σ `quantity` của các đơn đó, trước khi trừ voucher, không gồm phí vận chuyển (Q45). Số đơn theo trạng thái lọc theo `orderDate`, không tính đơn chờ thanh toán VNPAY (BR-26). Mọi con số tính bằng truy vấn tổng hợp trên CSDL lúc mở trang, không lưu bảng riêng.
 - JSP trên Tomcat 11 (EL 6.0) đọc record qua các thành phần của record, không gọi getter hay phương thức khác; giá trị nào trang cần (kể cả giá trị tính ra như `onSale`) phải là thành phần của record.
 
-Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (đơn hàng, tài khoản...) hiện mở trang 404 sau khi đăng nhập. Ảnh sản phẩm mẫu cũng lấy từ template này.
+Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Ảnh sản phẩm mẫu cũng lấy từ template này.
 
 ## Kiểm tra đã chạy
 
-- `mvnw.cmd clean package`: 128 test JUnit đạt (gồm hai khách cùng mua món hàng cuối: chỉ một đơn được tạo, tồn kho không âm), tạo được `target/clothing-shop.war`.
+- `mvnw.cmd clean package`: 137 test JUnit đạt (gồm hai khách cùng mua món hàng cuối: chỉ một đơn được tạo, tồn kho không âm), tạo được `target/clothing-shop.war`.
 - MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
 - Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
 - Tomcat 11.0.24 + MySQL 26.7.0 tạm, nạp `seed-dev.sql`: cửa hàng hiện 7 mặt hàng (mặt hàng không bán bị ẩn); lọc danh mục, tên có dấu, màu, khoảng giá sau giảm cho đúng kết quả; giá nhập sai báo lỗi; giá giảm 15% hiện 150.000 → 128.000; trang chi tiết hiện đánh giá (4,5/5); mặt hàng không bán và `id` không tồn tại trả về 404.
@@ -259,6 +269,7 @@ Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 
 - Trả hàng, đánh giá trên Tomcat + MySQL tạm: đánh giá dòng đã mua được, dòng chưa mua của cùng mặt hàng bị từ chối, khách khác không xóa được; trả hàng thiếu lý do hoặc gửi lần hai bị từ chối; duyệt trả hàng đơn COD và đơn VNPAY (hoàn tiền qua VNPAY có chữ ký đúng) thì đơn Đã hủy, thanh toán Đã hoàn tiền, tồn kho cộng lại, E7 được gửi; từ chối thì đơn giữ Giao thành công.
 - Quản lý sản phẩm trên Tomcat + MySQL tạm: thêm mặt hàng 2 biến thể, nhập sai (giá lẻ, trùng biến thể, thiếu ảnh) báo từng lỗi; sửa giá trên mọi dòng, lưu từ trang cũ bị từ chối; ngừng bán thì mặt hàng biến mất khỏi cửa hàng (chi tiết trả 404); tạo đợt giảm giá phải qua hộp thoại xác nhận, đợt trùng thời gian bị từ chối, sửa được đợt chưa bắt đầu, không sửa được đợt đang hiệu lực, giá ở cửa hàng 390.000 − 25% = 293.000; biến thể mới nhận các đợt chưa kết thúc; cộng tồn kho, đặt tồn kho từ trang cũ bị từ chối, trừ quá tồn kho bị từ chối; xóa biến thể chưa bán được, đã bán thì không; xóa mặt hàng chưa bán.
 - Voucher trên Tomcat + MySQL tạm: danh sách và tình trạng đúng với dữ liệu mẫu; tạo voucher qua hộp thoại xác nhận (trước khi xác nhận chưa lưu gì); mã dạng ngày lễ, số tiền lẻ, mức tối đa cho voucher số tiền bị từ chối; sửa được voucher chưa bắt đầu, không sửa được voucher đang hiệu lực; trang thiết lập hiện Tết 06/02/2027, Giỗ Tổ 16/04/2027; bật Tết khi chưa nhập loại, giá trị hoặc lệch âm bị từ chối; lưu thiết lập ghi file JSON kèm `enabledAt`; sau khi khởi động lại, J5 phát hành bù LOYAL-102026 (15%) và REGULAR-102026 (50.000 ₫) cho tháng 10.
+- Thống kê trên Tomcat + MySQL tạm: doanh thu, số đơn đã thanh toán, số đơn đặt, số lượng bán ra, số đơn theo trạng thái, top mặt hàng và tồn kho trên trang khớp với truy vấn SQL viết riêng trên cùng CSDL; khoảng 10 ngày ra 10 cột, khoảng cả năm nhóm theo tháng; ngày kết thúc trước ngày bắt đầu, khoảng quá 366 ngày được báo lỗi và hiện tháng này; ngày sai định dạng dùng mặc định; nhân viên và khách hàng nhận 403, chưa đăng nhập thì sang trang đăng nhập.
 - **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven; sandbox VNPAY thật (cần mã TMN và khóa bí mật của nhóm).
 
 ## Mô hình entity
@@ -274,8 +285,4 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
   - Không đặt chiều ngược cho các quan hệ one-to-one (Payment, DeliveryIssue, ReturnRequest → Order).
   - Cascade chỉ dùng cho quan hệ thành phần: `Order.details`, `Customer.addresses`.
 - **Khóa lạc quan:** 12 entity gốc có `@Version private Long version` (cột `version BIGINT`). Hibernate tăng version mỗi lần cập nhật và ném `OptimisticLockException` nếu bản ghi đã bị người khác lưu trước. Customer, Employee dùng version của User; VoucherPolicy dùng version của Voucher. Câu lệnh UPDATE hàng loạt phải tự tăng `version`.
-- **Kiểm tra dữ liệu:** các ràng buộc CHECK của ERD (số lượng > 0, rating 1–5, tồn kho ≥ 0) sẽ do tầng service kiểm tra.
-
-## Chưa làm
-
-- Thống kê (FR-43).
+- **Kiểm tra dữ liệu:** các ràng buộc CHECK của ERD (số lượng > 0, rating 1–5, tồn kho ≥ 0) do tầng service kiểm tra.
