@@ -19,4 +19,7 @@ public interface CartStore {
      * dropped when it becomes empty. If {@code change} throws, the cart is left as it was before the call.
      */
     <T> T update(int userId, Function<Cart, T> change);
+
+    /** Removes a product row from every cart, when the manager deletes it (FR-31 step 5). */
+    void removeProduct(int productId);
 }
