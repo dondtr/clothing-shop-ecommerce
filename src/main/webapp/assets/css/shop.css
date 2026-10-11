@@ -32,6 +32,8 @@ body, .tooltip, .popover, button, input, select, textarea {
 .site-blocks-table .product-thumbnail img { max-width: 90px; }
 .text-strike { text-decoration: line-through; }
 .min-vh-50 { min-height: 50vh; }
+.text-pre-line { white-space: pre-line; }
+.product-image { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
 
 /* ---------- Chọn biến thể (size / màu) ---------- */
 .variant-options { display: flex; flex-wrap: wrap; gap: 8px; }

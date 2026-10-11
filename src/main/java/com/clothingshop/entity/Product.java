@@ -1,5 +1,6 @@
 package com.clothingshop.entity;
 
+import com.clothingshop.util.Money;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -67,6 +68,30 @@ public class Product {
     private Long version;
 
     protected Product() {
+    }
+
+    /** Creates one variant row; rows of the same product share every value except color, size, stock and image. */
+    public Product(String name, ProductCategory category, String description, String imgUrl, BigDecimal basePrice,
+                   String color, String size, int stockQuantity, boolean active, LocalDateTime createdAt) {
+        this.name = name;
+        this.category = category;
+        this.description = description;
+        this.imgUrl = imgUrl;
+        this.basePrice = basePrice;
+        this.color = color;
+        this.size = size;
+        this.stockQuantity = stockQuantity;
+        this.active = active;
+        this.createdAt = createdAt;
+    }
+
+    /**
+     * Price after discount (section 3.2): the base price minus the percentage of {@code availableDiscount}, rounded to
+     * thousands (BR-21), or the base price when no discount of this row is in effect ({@code null}).
+     * The entity keeps no list of its discounts; callers look them up with {@code DiscountDao.findAvailable}.
+     */
+    public BigDecimal getCurrentPrice(Discount availableDiscount) {
+        return Money.minusPercent(basePrice, availableDiscount == null ? BigDecimal.ZERO : availableDiscount.getDiscountValue());
     }
 
     public Integer getId() {

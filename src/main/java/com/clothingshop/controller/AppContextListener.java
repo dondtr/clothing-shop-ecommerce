@@ -1,6 +1,7 @@
 package com.clothingshop.controller;
 
 import com.clothingshop.service.AccountService;
+import com.clothingshop.service.CatalogService;
 import com.clothingshop.service.EmailService;
 import com.clothingshop.service.PendingRegistrationStore;
 import com.clothingshop.util.JpaUtil;
@@ -20,6 +21,7 @@ import java.time.ZoneId;
 public class AppContextListener implements ServletContextListener {
 
     static final String ACCOUNT_SERVICE = "accountService";
+    static final String CATALOG_SERVICE = "catalogService";
 
     /** Business time is Vietnam time (specification section 3.1). */
     static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -30,6 +32,7 @@ public class AppContextListener implements ServletContextListener {
         ServletContext context = event.getServletContext();
         context.setAttribute(ACCOUNT_SERVICE,
                 new AccountService(EmailService.fromConfig(), new PendingRegistrationStore(clock), clock));
+        context.setAttribute(CATALOG_SERVICE, new CatalogService(clock));
     }
 
     @Override
@@ -39,5 +42,9 @@ public class AppContextListener implements ServletContextListener {
 
     static AccountService accountService(ServletContext context) {
         return (AccountService) context.getAttribute(ACCOUNT_SERVICE);
+    }
+
+    static CatalogService catalogService(ServletContext context) {
+        return (CatalogService) context.getAttribute(CATALOG_SERVICE);
     }
 }

@@ -51,6 +51,14 @@ public class Review {
     protected Review() {
     }
 
+    public Review(Customer customer, Product product, int rating, String comment, LocalDateTime createdAt) {
+        this.customer = customer;
+        this.product = product;
+        this.rating = rating;
+        this.comment = comment;
+        this.createdAt = createdAt;
+    }
+
     public Integer getId() {
         return id;
     }
