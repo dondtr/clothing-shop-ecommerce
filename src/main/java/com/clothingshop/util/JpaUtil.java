@@ -1,12 +1,15 @@
 package com.clothingshop.util;
 
+import com.clothingshop.exception.ConflictException;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.Persistence;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import org.hibernate.StaleStateException;
 
 /**
  * Holds the application's single {@link EntityManagerFactory} for the persistence unit {@value #PERSISTENCE_UNIT}
@@ -59,7 +62,10 @@ public final class JpaUtil {
         entityManagerFactory = null;
     }
 
-    /** Runs {@code work} in one transaction: commits when it returns, rolls back when it throws. */
+    /**
+     * Runs {@code work} in one transaction: commits when it returns, rolls back when it throws. A failed version check
+     * (another transaction saved the same row first, section 3.1) is reported as {@link ConflictException}.
+     */
     public static <T> T inTransaction(Function<EntityManager, T> work) {
         EntityManager em = getEntityManagerFactory().createEntityManager();
         EntityTransaction tx = em.getTransaction();
@@ -72,10 +78,22 @@ public final class JpaUtil {
             if (tx.isActive()) {
                 tx.rollback();
             }
+            if (isOptimisticLockFailure(e)) {
+                throw new ConflictException();
+            }
             throw e;
         } finally {
             em.close();
         }
+    }
+
+    private static boolean isOptimisticLockFailure(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof OptimisticLockException || t instanceof StaleStateException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Runs read-only {@code work} with a new entity manager, without a transaction. */

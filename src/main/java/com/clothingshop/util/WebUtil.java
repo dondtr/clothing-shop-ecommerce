@@ -1,6 +1,8 @@
 package com.clothingshop.util;
 
+import com.clothingshop.dto.AuthUser;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 
 /** Small helpers shared by the controllers. */
 public final class WebUtil {
@@ -20,6 +22,30 @@ public final class WebUtil {
             return scheme + "://" + request.getServerName() + (defaultPort ? "" : ":" + port) + request.getContextPath();
         });
         return (base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + path;
+    }
+
+    /** The signed-in user, or {@code null}. */
+    public static AuthUser currentUser(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        return session == null ? null : (AuthUser) session.getAttribute(AuthUser.SESSION_KEY);
+    }
+
+    /** An integer request value, or {@code null} when it is missing or not a number. */
+    public static Integer parseInt(String value) {
+        try {
+            return value == null ? null : Integer.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** A long request value (for example a version number), or {@code null}. */
+    public static Long parseLong(String value) {
+        try {
+            return value == null ? null : Long.valueOf(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

@@ -38,6 +38,10 @@ public class UserDao {
                 .setParameter("v", email).getResultStream().findFirst();
     }
 
+    public Optional<User> findById(int id) {
+        return Optional.ofNullable(em.find(User.class, id));
+    }
+
     public void persist(User user) {
         em.persist(user);
     }

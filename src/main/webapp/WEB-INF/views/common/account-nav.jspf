@@ -1,0 +1,16 @@
+<%-- Menu bên trái của các trang tài khoản. Trang gọi đặt accountNav: profile | password | addresses | orders | wishlist | vouchers --%>
+<div class="list-group mb-4">
+  <a href="${ctx}/account/profile" class="list-group-item list-group-item-action ${accountNav == 'profile' ? 'active' : ''}">Thông tin cá nhân</a>
+  <a href="${ctx}/account/password" class="list-group-item list-group-item-action ${accountNav == 'password' ? 'active' : ''}">Đổi mật khẩu</a>
+  <c:choose>
+    <c:when test="${sessionScope.auth.customer}">
+      <a href="${ctx}/account/addresses" class="list-group-item list-group-item-action ${accountNav == 'addresses' ? 'active' : ''}">Sổ địa chỉ</a>
+      <a href="${ctx}/orders" class="list-group-item list-group-item-action ${accountNav == 'orders' ? 'active' : ''}">Đơn hàng của tôi</a>
+      <a href="${ctx}/wishlist" class="list-group-item list-group-item-action ${accountNav == 'wishlist' ? 'active' : ''}">Yêu thích</a>
+      <a href="${ctx}/vouchers" class="list-group-item list-group-item-action ${accountNav == 'vouchers' ? 'active' : ''}">Voucher của tôi</a>
+    </c:when>
+    <c:otherwise>
+      <a href="${ctx}/staff" class="list-group-item list-group-item-action">Khu quản lý</a>
+    </c:otherwise>
+  </c:choose>
+</div>

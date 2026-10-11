@@ -154,6 +154,11 @@ Tomcat chạy dưới dạng Windows service không nhận biến môi trường
 | `/register/verify?token=...` | Link trong email E8: hiệu lực 24 giờ, dùng một lần; tạo `User` + `Customer` (hạng CASUAL) trong một giao dịch |
 | `/login` | Đăng nhập bằng tên đăng nhập hoặc email (FR-02); nhân viên bị khóa không đăng nhập được |
 | `/logout` | Đăng xuất (chỉ nhận POST) |
+| `/forgot-password` | Quên mật khẩu (FR-03): luôn báo "Nếu email tồn tại, hệ thống đã gửi hướng dẫn"; email E9 chứa link hiệu lực 15 phút |
+| `/reset-password?token=...` | Đặt mật khẩu mới từ link E9; link có chữ ký gồm mã người dùng và dấu vết mật khẩu hiện tại nên hết hiệu lực khi mật khẩu đã đổi, không lưu CSDL |
+| `/account/profile` | Thông tin cá nhân (FR-04), cho mọi tài khoản: sửa họ tên, giới tính, ngày sinh, số điện thoại; không sửa tên đăng nhập, email |
+| `/account/password` | Đổi mật khẩu (FR-05): phải nhập đúng mật khẩu hiện tại |
+| `/account/addresses` | Sổ địa chỉ (FR-06): thêm, sửa, đặt mặc định, xóa; địa chỉ đầu tiên là mặc định; xóa địa chỉ mặc định phải chọn địa chỉ khác hoặc tạo địa chỉ mới làm mặc định trong cùng giao dịch (Q62, SD13); chuỗi "số nhà, phường/xã, tỉnh/thành phố" không quá 255 ký tự |
 | `/shop` | Cửa hàng (FR-07): các mặt hàng đang bán, lọc theo danh mục (`category`), tên (`q`, không phân biệt hoa thường), khoảng giá sau giảm (`minPrice`, `maxPrice`), màu (`color`); 12 mặt hàng mỗi trang (`page`), mới nhất trước; nhãn "Hết hàng" khi mọi dòng hết tồn kho |
 | `/product?id=...` | Chi tiết mặt hàng (FR-08): `id` là một dòng bất kỳ của mặt hàng; chọn màu + kích thước để xem ảnh và tồn kho của dòng đó; điểm trung bình và đánh giá của mọi dòng; mặt hàng không bán trả về 404. Khách hàng đã đăng nhập có nút "Thêm vào giỏ hàng" (dòng hết hàng không thêm được) và "Thêm vào danh sách yêu thích" |
 | `/cart` | Giỏ hàng (FR-09): thêm từ trang chi tiết (`POST /cart/add`), đổi số lượng (`POST /cart/update`), xóa dòng (`POST /cart/remove`); đơn giá theo giá sau giảm hiện tại; dòng ngừng bán, hết hàng hoặc vượt tồn kho được đánh dấu và không tính vào tổng |
@@ -170,18 +175,22 @@ Ghi chú kỹ thuật:
 - Số lượng trong giỏ không vượt tồn kho lúc thêm/sửa; tồn kho có thể giảm sau đó nên bước đặt hàng (FR-12) phải kiểm tra lại trong giao dịch.
 - `CustomerAreaFilter` chặn `/cart`, `/wishlist`, `/checkout`, `/orders`, `/account/*`: chưa đăng nhập thì chuyển sang trang đăng nhập rồi quay lại (BR-25); tài khoản nhân viên nhận 403 (BR-27). Chức năng mới thuộc các đường dẫn này không cần tự kiểm tra đăng nhập nữa.
 - Hai trình duyệt cùng sửa danh sách yêu thích: Hibernate tăng `Wishlist.version` mỗi lần thêm, bỏ mặt hàng, nên thay đổi dựa trên bản cũ bị từ chối với thông báo "Dữ liệu đã được người khác thay đổi, vui lòng tải lại" (đặc tả mục 3.1).
+- Khóa lạc quan: `JpaUtil.inTransaction` đổi lỗi kiểm tra version thành `ConflictException` ("Dữ liệu đã được người khác thay đổi, vui lòng tải lại", mục 3.1). Form sửa dữ liệu gửi kèm `version` lúc mở form; service so với version hiện tại (`ConflictException.check`) nên lưu từ form cũ bị từ chối.
+- Email thông báo (E1 – E7, E9) gửi qua `AsyncEmailService` trên luồng riêng: máy chủ mail chậm hoặc lỗi không làm chậm thao tác và không hoàn tác thay đổi đã lưu; lỗi được ghi log. Nội dung các email ở `service/Emails.java`. Email xác thực đăng ký (E8) vẫn gửi trực tiếp để báo khách khi không gửi được.
+- `SignedInFilter` chặn `/account/profile`, `/account/password` (mọi tài khoản đã đăng nhập); `CustomerAreaFilter` chặn `/account/addresses`, `/vouchers` và các trang mua hàng.
 - JSP trên Tomcat 11 (EL 6.0) đọc record qua các thành phần của record, không gọi getter hay phương thức khác; giá trị nào trang cần (kể cả giá trị tính ra như `onSale`) phải là thành phần của record.
 
 Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (đơn hàng, tài khoản...) hiện mở trang 404 sau khi đăng nhập. Ảnh sản phẩm mẫu cũng lấy từ template này.
 
 ## Kiểm tra đã chạy
 
-- `mvnw.cmd clean package`: 50 test JUnit đạt, tạo được `target/clothing-shop.war`.
+- `mvnw.cmd clean package`: 65 test JUnit đạt, tạo được `target/clothing-shop.war`.
 - MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
 - Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
 - Tomcat 11.0.24 + MySQL 26.7.0 tạm, nạp `seed-dev.sql`: cửa hàng hiện 7 mặt hàng (mặt hàng không bán bị ẩn); lọc danh mục, tên có dấu, màu, khoảng giá sau giảm cho đúng kết quả; giá nhập sai báo lỗi; giá giảm 15% hiện 150.000 → 128.000; trang chi tiết hiện đánh giá (4,5/5); mặt hàng không bán và `id` không tồn tại trả về 404.
 - Giỏ hàng trên Tomcat + MySQL tạm, với một khách hàng đăng ký thử: chưa đăng nhập mở `/cart` thì sang trang đăng nhập rồi quay lại; thêm vượt tồn kho, dòng hết hàng, mặt hàng không bán đều bị từ chối với thông báo cụ thể; phiên đăng nhập thứ hai (như trình duyệt khác) thấy cùng giỏ; cập nhật nhiều dòng cùng lúc áp dụng dòng hợp lệ và báo dòng sai; dòng bị chuyển sang không bán hoặc tồn kho giảm được đánh dấu và không tính vào tổng; POST thiếu token CSRF bị chặn.
 - Yêu thích trên Tomcat + MySQL tạm: thêm từ trang chi tiết lưu đúng dòng đang chọn, nút đổi thành "Bỏ khỏi danh sách yêu thích"; thêm dòng khác của cùng mặt hàng không tạo bản ghi mới; mặt hàng chuyển sang không bán vẫn hiện, có nhãn "Ngừng bán"; bỏ khỏi danh sách được. Tài khoản nhân viên mở `/cart`, `/wishlist` nhận 403.
+- Tài khoản trên Tomcat + MySQL tạm: chưa đăng nhập mở trang tài khoản thì sang trang đăng nhập; lưu thông tin cá nhân, lưu lại từ form cũ bị từ chối; đổi mật khẩu cần mật khẩu cũ đúng; quên mật khẩu với email viết hoa vẫn nhận link (lấy từ log), đặt mật khẩu mới xong thì link hết hiệu lực; xóa địa chỉ mặc định phải chọn hoặc tạo địa chỉ mặc định mới, CSDL luôn còn đúng một địa chỉ mặc định.
 - **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven.
 
 ## Mô hình entity
@@ -201,5 +210,5 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
 
 ## Chưa làm
 
-- Các chức năng còn lại của đặc tả: quên mật khẩu, thông tin cá nhân, địa chỉ (FR-03 → FR-06), đặt hàng, voucher, thanh toán VNPAY, quản lý sản phẩm, quản trị...
+- Các chức năng còn lại của đặc tả: đặt hàng, voucher, thanh toán VNPAY, quản lý sản phẩm, quản trị...
 - Tài khoản quản lý tạo sẵn khi triển khai (BR-24).

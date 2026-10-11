@@ -61,10 +61,15 @@
                           <c:out value="${sessionScope.auth.userName}"/>
                           <c:if test="${sessionScope.auth.employee}">(${sessionScope.auth.admin ? 'Quản lý' : 'Nhân viên'})</c:if>
                         </h6>
+                        <c:if test="${sessionScope.auth.employee}">
+                          <a class="dropdown-item" href="${ctx}/staff">Khu quản lý</a>
+                        </c:if>
+                        <a class="dropdown-item" href="${ctx}/account/profile">Thông tin cá nhân</a>
+                        <a class="dropdown-item" href="${ctx}/account/password">Đổi mật khẩu</a>
                         <c:if test="${sessionScope.auth.customer}">
-                          <a class="dropdown-item" href="${ctx}/account/profile">Tài khoản của tôi</a>
                           <a class="dropdown-item" href="${ctx}/orders">Đơn hàng của tôi</a>
                           <a class="dropdown-item" href="${ctx}/account/addresses">Sổ địa chỉ</a>
+                          <a class="dropdown-item" href="${ctx}/vouchers">Voucher của tôi</a>
                         </c:if>
                         <div class="dropdown-divider"></div>
                         <form action="${ctx}/logout" method="post" class="m-0">
