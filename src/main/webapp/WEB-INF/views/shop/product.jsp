@@ -87,6 +87,28 @@
           <c:when test="${sessionScope.auth.employee}">
             <p class="text-muted small">Tài khoản nhân viên không mua hàng; vui lòng dùng tài khoản khách hàng riêng (BR-27).</p>
           </c:when>
+          <c:otherwise>
+            <%-- Thêm vào giỏ hàng (FR-09): chỉ khách hàng đã đăng nhập (Q40); dòng hết hàng không thêm được --%>
+            <form action="${ctx}/cart/add" method="post" class="mb-3">
+              <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+              <input type="hidden" name="productId" id="variant-id" value="${selected.id}">
+              <div class="d-flex flex-wrap align-items-center" style="gap: 12px;">
+                <div class="input-group" style="max-width: 140px;">
+                  <div class="input-group-prepend">
+                    <button class="btn btn-outline-primary js-btn-minus" type="button" aria-label="Giảm">&minus;</button>
+                  </div>
+                  <input type="number" id="quantity" name="quantity" class="form-control text-center" value="1" min="1"
+                         data-min="1" data-max="${selected.stockQuantity}" aria-label="Số lượng">
+                  <div class="input-group-append">
+                    <button class="btn btn-outline-primary js-btn-plus" type="button" aria-label="Tăng">&plus;</button>
+                  </div>
+                </div>
+                <button type="submit" id="add-to-cart" class="btn btn-sm btn-primary" ${selected.stockQuantity == 0 ? 'disabled' : ''}>
+                  Thêm vào giỏ hàng
+                </button>
+              </div>
+            </form>
+          </c:otherwise>
         </c:choose>
       </div>
     </div>
@@ -143,6 +165,15 @@
       if (v) { $('#variant-image').attr('src', v.img); }
       $(document).trigger('variant:change', [v || null]);
     }
+    // Form thêm vào giỏ (chỉ có khi khách hàng đã đăng nhập) luôn gửi đúng dòng đang chọn
+    $(document).on('variant:change', function (e, v) {
+      var ok = !!v && v.stock > 0;
+      $('#variant-id').val(v ? v.id : '');
+      $('#add-to-cart').prop('disabled', !ok);
+      var qty = $('#quantity');
+      qty.data('max', ok ? v.stock : 1);
+      if (ok && parseInt(qty.val(), 10) > v.stock) { qty.val(v.stock); }
+    });
     $('input[name=pickColor], input[name=pickSize]').on('change', update);
     update();
   })(jQuery);

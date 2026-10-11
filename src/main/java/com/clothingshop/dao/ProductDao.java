@@ -4,6 +4,7 @@ import com.clothingshop.entity.Product;
 import com.clothingshop.entity.ProductCategory;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.TypedQuery;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -22,6 +23,15 @@ public class ProductDao {
 
     public Optional<Product> findById(int id) {
         return Optional.ofNullable(em.find(Product.class, id));
+    }
+
+    /** The rows with the given ids that exist (deleted rows are simply absent). */
+    public List<Product> findByIds(Collection<Integer> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("select p from Product p where p.id in :ids", Product.class)
+                .setParameter("ids", ids).getResultList();
     }
 
     /**
