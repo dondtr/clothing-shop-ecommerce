@@ -57,6 +57,13 @@ public class DeliveryIssue {
     protected DeliveryIssue() {
     }
 
+    /** "Chưa thấy hàng đâu" reported by the customer (FR-20): status OPEN. */
+    public DeliveryIssue(Order order, LocalDateTime reportedAt) {
+        this.order = order;
+        this.reportedAt = reportedAt;
+        this.status = DeliveryIssueStatus.OPEN;
+    }
+
     public Integer getId() {
         return id;
     }

@@ -1,0 +1,56 @@
+<%-- Khung trang khu quản lý (nhân viên và quản lý). Trang gọi đặt: pageTitle, staffNav --%>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title><c:out value="${pageTitle}"/> &mdash; Quản lý Shoppers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&amp;display=swap">
+  <link rel="stylesheet" href="${ctx}/assets/fonts/icomoon/style.css">
+  <link rel="stylesheet" href="${ctx}/assets/css/bootstrap.min.css">
+  <link rel="stylesheet" href="${ctx}/assets/css/shop.css">
+</head>
+<body>
+<div class="admin-wrap">
+  <aside class="admin-sidebar">
+    <a href="${ctx}/staff" class="brand">SHOPPERS <small class="d-block text-muted" style="font-size: 12px;">Khu quản lý</small></a>
+    <div class="nav-section">Vận hành</div>
+    <nav class="nav flex-column">
+      <a class="nav-link ${staffNav == 'dashboard' ? 'active' : ''}" href="${ctx}/staff">Tổng quan</a>
+      <a class="nav-link ${staffNav == 'orders' ? 'active' : ''}" href="${ctx}/staff/orders">Đơn hàng</a>
+      <a class="nav-link ${staffNav == 'issues' ? 'active' : ''}" href="${ctx}/staff/delivery-issues">Sự cố giao hàng</a>
+      <a class="nav-link ${staffNav == 'returns' ? 'active' : ''}" href="${ctx}/staff/returns">Yêu cầu trả hàng</a>
+      <a class="nav-link ${staffNav == 'products' ? 'active' : ''}" href="${ctx}/staff/products">Sản phẩm, tồn kho</a>
+      <a class="nav-link ${staffNav == 'customers' ? 'active' : ''}" href="${ctx}/staff/customers">Khách hàng</a>
+    </nav>
+    <c:if test="${sessionScope.auth.admin}">
+      <div class="nav-section">Quản lý</div>
+      <nav class="nav flex-column">
+        <a class="nav-link ${staffNav == 'vouchers' ? 'active' : ''}" href="${ctx}/admin/vouchers">Voucher</a>
+        <a class="nav-link ${staffNav == 'voucher-settings' ? 'active' : ''}" href="${ctx}/admin/voucher-settings">Voucher tự động</a>
+        <a class="nav-link ${staffNav == 'employees' ? 'active' : ''}" href="${ctx}/admin/employees">Nhân viên</a>
+        <a class="nav-link ${staffNav == 'statistics' ? 'active' : ''}" href="${ctx}/admin/statistics">Thống kê</a>
+      </nav>
+    </c:if>
+    <div class="nav-section">Cá nhân</div>
+    <nav class="nav flex-column">
+      <a class="nav-link" href="${ctx}/account/profile"><c:out value="${sessionScope.auth.fullName}"/>
+        <small>(${sessionScope.auth.admin ? 'Quản lý' : 'Nhân viên'})</small></a>
+      <a class="nav-link" href="${ctx}/account/password">Đổi mật khẩu</a>
+      <a class="nav-link" href="${ctx}/" target="_blank" rel="noopener">Xem cửa hàng ↗</a>
+      <form action="${ctx}/logout" method="post" class="m-0">
+        <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+        <button type="submit" class="nav-link btn btn-link text-left w-100">Đăng xuất</button>
+      </form>
+    </nav>
+  </aside>
+  <main class="admin-main">
+    <c:if test="${not empty sessionScope.flash}">
+      <div class="alert alert-${sessionScope.flash.type} alert-dismissible fade show" role="alert">
+        <c:out value="${sessionScope.flash.message}"/>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <c:remove var="flash" scope="session"/>
+    </c:if>

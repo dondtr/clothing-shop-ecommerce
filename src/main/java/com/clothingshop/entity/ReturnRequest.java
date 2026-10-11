@@ -55,6 +55,14 @@ public class ReturnRequest {
     protected ReturnRequest() {
     }
 
+    /** A return request sent by the customer (FR-25): status PENDING. */
+    public ReturnRequest(Order order, LocalDateTime requestedAt, String reason) {
+        this.order = order;
+        this.requestedAt = requestedAt;
+        this.reason = reason;
+        this.status = ReturnRequestStatus.PENDING;
+    }
+
     public Integer getId() {
         return id;
     }

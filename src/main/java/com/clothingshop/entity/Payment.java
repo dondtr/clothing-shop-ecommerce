@@ -52,6 +52,13 @@ public class Payment {
     protected Payment() {
     }
 
+    /** The payment created together with an order, always UNPAID at first (FR-12, FR-13). */
+    public Payment(Order order, PaymentMethod method) {
+        this.order = order;
+        this.method = method;
+        this.status = PaymentStatus.UNPAID;
+    }
+
     public Integer getId() {
         return id;
     }

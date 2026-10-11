@@ -5,7 +5,10 @@ import com.clothingshop.service.AddressService;
 import com.clothingshop.service.AsyncEmailService;
 import com.clothingshop.service.CartService;
 import com.clothingshop.service.CatalogService;
+import com.clothingshop.service.CustomerService;
+import com.clothingshop.service.DashboardService;
 import com.clothingshop.service.EmailService;
+import com.clothingshop.service.EmployeeService;
 import com.clothingshop.service.InMemoryCartStore;
 import com.clothingshop.service.PasswordResetService;
 import com.clothingshop.service.PendingRegistrationStore;
@@ -16,8 +19,14 @@ import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletContextEvent;
 import jakarta.servlet.ServletContextListener;
 import jakarta.servlet.annotation.WebListener;
+import java.sql.Driver;
+import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.ZoneId;
+import java.util.Collections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Creates the shared services when the application starts and releases resources when it stops.
@@ -26,6 +35,8 @@ import java.time.ZoneId;
  */
 @WebListener
 public class AppContextListener implements ServletContextListener {
+
+    private static final Logger LOG = LoggerFactory.getLogger(AppContextListener.class);
 
     /** Business time is Vietnam time (specification section 3.1). */
     static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -46,6 +57,17 @@ public class AppContextListener implements ServletContextListener {
         register(context, new CatalogService(clock));
         register(context, new CartService(new InMemoryCartStore(clock), clock));
         register(context, new WishlistService(clock));
+        register(context, new CustomerService());
+        EmployeeService employees = new EmployeeService(clock);
+        register(context, employees);
+        register(context, new DashboardService());
+
+        try {
+            employees.ensureAdmin();
+        } catch (RuntimeException e) {
+            // The shop can still start (for example while the database is down); the account is created on a later start
+            LOG.error("Could not check or create the manager account at start-up", e);
+        }
     }
 
     @Override
@@ -54,6 +76,29 @@ public class AppContextListener implements ServletContextListener {
             notifications.close();
         }
         JpaUtil.close();
+        releaseJdbcDriver();
+    }
+
+    /**
+     * Lets Tomcat unload the application cleanly when it is redeployed: stops the MySQL driver's clean-up thread and
+     * deregisters the JDBC drivers loaded by this application, which would otherwise keep the old class loader alive.
+     */
+    private static void releaseJdbcDriver() {
+        try {
+            Class.forName("com.mysql.cj.jdbc.AbandonedConnectionCleanupThread").getMethod("checkedShutdown").invoke(null);
+        } catch (ReflectiveOperationException | LinkageError e) {
+            LOG.debug("MySQL clean-up thread not stopped", e);
+        }
+        ClassLoader own = AppContextListener.class.getClassLoader();
+        for (Driver driver : Collections.list(DriverManager.getDrivers())) {
+            if (driver.getClass().getClassLoader() == own) {
+                try {
+                    DriverManager.deregisterDriver(driver);
+                } catch (SQLException e) {
+                    LOG.warn("Could not deregister JDBC driver {}", driver, e);
+                }
+            }
+        }
     }
 
     private static void register(ServletContext context, Object service) {

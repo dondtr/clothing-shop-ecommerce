@@ -1,0 +1,21 @@
+<%-- Bảng đơn hàng dùng chung trong khu quản lý. Biến: orderRows (danh sách OrderRow) --%>
+<div class="table-responsive">
+  <table class="table table-sm table-hover bg-white mb-0">
+    <thead class="thead-light">
+      <tr><th>Mã đơn</th><th>Khách hàng</th><th>Ngày đặt</th><th class="text-right">Tổng tiền</th><th>Thanh toán</th><th>Trạng thái</th></tr>
+    </thead>
+    <tbody>
+      <c:if test="${empty orderRows}"><tr><td colspan="6" class="text-muted text-center py-3">Chưa có đơn hàng.</td></tr></c:if>
+      <c:forEach items="${orderRows}" var="o">
+        <tr>
+          <td><a href="${ctx}/staff/orders/detail?id=${o.id}">#${o.id}</a></td>
+          <td><c:out value="${o.customerName}"/></td>
+          <td>${f:dateTime(o.orderDate)}</td>
+          <td class="text-right">${f:vnd(o.totalAmount)}</td>
+          <td><small>${o.method}</small> <t:status value="${o.paymentStatus}"/></td>
+          <td><t:status value="${o.status}"/></td>
+        </tr>
+      </c:forEach>
+    </tbody>
+  </table>
+</div>

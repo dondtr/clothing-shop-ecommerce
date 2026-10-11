@@ -1,0 +1,10 @@
+<%-- Đóng khung trang khu quản lý; trang gọi tự đóng </body></html> sau script riêng (nếu có) --%>
+  </main>
+</div>
+<script src="${ctx}/assets/js/jquery-3.3.1.min.js"></script>
+<script src="${ctx}/assets/js/popper.min.js"></script>
+<script src="${ctx}/assets/js/bootstrap.min.js"></script>
+<script>
+  // Nút có data-confirm hỏi lại trước khi gửi form
+  $(document).on('submit', 'form[data-confirm]', function () { return confirm($(this).attr('data-confirm')); });
+</script>

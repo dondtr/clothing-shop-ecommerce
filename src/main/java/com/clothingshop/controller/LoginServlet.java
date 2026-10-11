@@ -36,7 +36,7 @@ public class LoginServlet extends HttpServlet {
             request.changeSessionId();   // a new session id after sign-in prevents session fixation
             request.getSession().setAttribute(AuthUser.SESSION_KEY, user);
             FlashMessage.put(request.getSession(), "success", "Xin chào " + user.getFullName() + ", bạn đã đăng nhập thành công.");
-            String next = WebUtil.safeRedirectPath(request.getParameter("next"), "/");
+            String next = WebUtil.safeRedirectPath(request.getParameter("next"), user.isEmployee() ? "/staff" : "/");
             response.sendRedirect(request.getContextPath() + next);
         } catch (BusinessException e) {
             request.setAttribute("error", e.getMessage());
