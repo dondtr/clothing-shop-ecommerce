@@ -108,6 +108,15 @@
                 </button>
               </div>
             </form>
+            <%-- Yêu thích (FR-10): lưu dòng đang xem; mỗi mặt hàng chỉ một lần trong danh sách --%>
+            <form action="${ctx}/wishlist/${inWishlist ? 'remove' : 'add'}" method="post" class="mb-3">
+              <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+              <input type="hidden" name="productId" id="wishlist-product-id" value="${selected.id}">
+              <button type="submit" class="btn btn-link p-0">
+                <span class="icon ${inWishlist ? 'icon-heart text-danger' : 'icon-heart-o'}"></span>
+                ${inWishlist ? 'Bỏ khỏi danh sách yêu thích' : 'Thêm vào danh sách yêu thích'}
+              </button>
+            </form>
           </c:otherwise>
         </c:choose>
       </div>
@@ -169,6 +178,7 @@
     $(document).on('variant:change', function (e, v) {
       var ok = !!v && v.stock > 0;
       $('#variant-id').val(v ? v.id : '');
+      if (v) { $('#wishlist-product-id').val(v.id); }
       $('#add-to-cart').prop('disabled', !ok);
       var qty = $('#quantity');
       qty.data('max', ok ? v.stock : 1);

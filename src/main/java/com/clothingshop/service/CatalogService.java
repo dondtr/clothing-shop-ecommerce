@@ -97,7 +97,8 @@ public class CatalogService {
         });
     }
 
-    private static ProductSummary summarize(List<Product> rows, Map<Integer, Discount> discounts, String preferredColor) {
+    /** One tile for the rows of a product; also used for the wishlist (FR-10). */
+    static ProductSummary summarize(List<Product> rows, Map<Integer, Discount> discounts, String preferredColor) {
         Product cheapest = cheapest(rows, discounts);
         Product shown = pickRow(rows, preferredColor);
         boolean soldOut = rows.stream().allMatch(p -> p.getStockQuantity() == 0);
@@ -136,7 +137,7 @@ public class CatalogService {
     }
 
     /** Groups rows into products by name (letter case ignored, section 3.1), keeping the order of the rows. */
-    private static Collection<List<Product>> groupByName(List<Product> rows) {
+    static Collection<List<Product>> groupByName(List<Product> rows) {
         Map<String, List<Product>> groups = new LinkedHashMap<>();
         for (Product p : rows) {
             groups.computeIfAbsent(p.getName().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(p);
@@ -172,7 +173,7 @@ public class CatalogService {
         return amount.setScale(0, RoundingMode.HALF_UP);
     }
 
-    private static List<Integer> ids(List<Product> rows) {
+    static List<Integer> ids(List<Product> rows) {
         return rows.stream().map(Product::getId).toList();
     }
 }

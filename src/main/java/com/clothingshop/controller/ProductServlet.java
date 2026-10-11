@@ -1,5 +1,6 @@
 package com.clothingshop.controller;
 
+import com.clothingshop.dto.AuthUser;
 import com.clothingshop.dto.ProductDetail;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -29,6 +30,11 @@ public class ProductServlet extends HttpServlet {
             return;
         }
         request.setAttribute("product", detail.get());
+        AuthUser user = (AuthUser) request.getSession().getAttribute(AuthUser.SESSION_KEY);
+        if (user != null && user.isCustomer()) {
+            request.setAttribute("inWishlist",
+                    AppContextListener.wishlistService(getServletContext()).contains(user.getId(), detail.get().name()));
+        }
         request.getRequestDispatcher(VIEW).forward(request, response);
     }
 

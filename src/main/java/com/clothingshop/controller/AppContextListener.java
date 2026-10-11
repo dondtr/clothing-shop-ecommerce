@@ -6,6 +6,7 @@ import com.clothingshop.service.CatalogService;
 import com.clothingshop.service.EmailService;
 import com.clothingshop.service.InMemoryCartStore;
 import com.clothingshop.service.PendingRegistrationStore;
+import com.clothingshop.service.WishlistService;
 import com.clothingshop.util.JpaUtil;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletContextEvent;
@@ -25,6 +26,7 @@ public class AppContextListener implements ServletContextListener {
     static final String ACCOUNT_SERVICE = "accountService";
     static final String CATALOG_SERVICE = "catalogService";
     static final String CART_SERVICE = "cartService";
+    static final String WISHLIST_SERVICE = "wishlistService";
 
     /** Business time is Vietnam time (specification section 3.1). */
     static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -37,6 +39,7 @@ public class AppContextListener implements ServletContextListener {
                 new AccountService(EmailService.fromConfig(), new PendingRegistrationStore(clock), clock));
         context.setAttribute(CATALOG_SERVICE, new CatalogService(clock));
         context.setAttribute(CART_SERVICE, new CartService(new InMemoryCartStore(clock), clock));
+        context.setAttribute(WISHLIST_SERVICE, new WishlistService(clock));
     }
 
     @Override
@@ -54,5 +57,9 @@ public class AppContextListener implements ServletContextListener {
 
     static CartService cartService(ServletContext context) {
         return (CartService) context.getAttribute(CART_SERVICE);
+    }
+
+    static WishlistService wishlistService(ServletContext context) {
+        return (WishlistService) context.getAttribute(WISHLIST_SERVICE);
     }
 }

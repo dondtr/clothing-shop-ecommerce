@@ -34,6 +34,7 @@ body, .tooltip, .popover, button, input, select, textarea {
 .min-vh-50 { min-height: 50vh; }
 .text-pre-line { white-space: pre-line; }
 .product-image { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
+.opacity-60 { opacity: .6; }
 
 /* ---------- Chọn biến thể (size / màu) ---------- */
 .variant-options { display: flex; flex-wrap: wrap; gap: 8px; }
