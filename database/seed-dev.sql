@@ -8,6 +8,8 @@
 --       có một đợt giảm giá đang hiệu lực (15%: 150.000 → 127.500, làm tròn thành 128.000 theo BR-21),
 --       một đợt chưa đến ngày bắt đầu, một đợt đã kết thúc, một mặt hàng hết hàng mọi dòng, vài dòng hết hàng.
 --   - 1 mặt hàng không bán (active = FALSE), không hiện ở cửa hàng (BR-16).
+--   - 6 voucher tạo thủ công: đang dùng được (phần trăm có mức tối đa, số tiền cố định, riêng hạng Trung thành),
+--     chưa đến ngày bắt đầu, đã hết hạn, hết lượt.
 --   - 2 khách hàng mẫu chỉ để làm người viết đánh giá. Cột password không phải chuỗi băm hợp lệ nên
 --     KHÔNG đăng nhập được bằng các tài khoản này; muốn thử giỏ hàng thì tự đăng ký tài khoản.
 --     Đánh giá mẫu được thêm thẳng vào bảng, bỏ qua điều kiện đã mua hàng (BR-14) cho tiện xem giao diện.
@@ -76,3 +78,19 @@ FROM `Product` WHERE `name` = 'Áo thun ngôi sao' AND `color` = 'Xanh ngọc' A
 INSERT INTO `Review` (`customerId`, `productId`, `rating`, `comment`, `createdAt`)
 SELECT @minh, `id`, 4, 'Màu đen đẹp, hình in rõ. Giao hơi chậm.', NOW() - INTERVAL 1 DAY
 FROM `Product` WHERE `name` = 'Áo thun ngôi sao' AND `color` = 'Đen' AND `size` = 'M';
+
+-- Voucher tạo thủ công (mã không trùng dạng mã ngày lễ, mã hằng tháng: BR-22)
+INSERT INTO `Voucher` (`code`, `discountType`, `discountValue`, `quantity`) VALUES
+('CHAOBAN', 'PERCENT', 10, 100),
+('GIAM30K', 'FIXED_AMOUNT', 30000, 50),
+('TRUNGTHANH', 'PERCENT', 20, 30),
+('SAPTOI', 'PERCENT', 15, 100),
+('HETHAN', 'FIXED_AMOUNT', 50000, 100),
+('HETLUOT', 'PERCENT', 50, 0);
+INSERT INTO `VoucherPolicy` (`voucherCode`, `eligibleCustomer`, `minOrderValue`, `maxDiscount`, `startDate`, `endDate`) VALUES
+('CHAOBAN', 'ALL', 200000, 50000, NOW() - INTERVAL 1 DAY, NOW() + INTERVAL 60 DAY),
+('GIAM30K', 'ALL', 300000, NULL, NOW() - INTERVAL 1 DAY, NOW() + INTERVAL 60 DAY),
+('TRUNGTHANH', 'LOYAL', 0, 200000, NOW() - INTERVAL 1 DAY, NOW() + INTERVAL 60 DAY),
+('SAPTOI', 'ALL', 0, NULL, NOW() + INTERVAL 5 DAY, NOW() + INTERVAL 30 DAY),
+('HETHAN', 'ALL', 0, NULL, NOW() - INTERVAL 30 DAY, NOW() - INTERVAL 1 DAY),
+('HETLUOT', 'ALL', 0, NULL, NOW() - INTERVAL 1 DAY, NOW() + INTERVAL 30 DAY);

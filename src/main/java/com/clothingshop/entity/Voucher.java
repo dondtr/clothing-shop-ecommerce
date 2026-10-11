@@ -1,5 +1,6 @@
 package com.clothingshop.entity;
 
+import com.clothingshop.util.Money;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -11,6 +12,8 @@ import jakarta.persistence.SecondaryTable;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
 
 /**
  * Voucher (table {@code Voucher}) with its usage policy (table {@code VoucherPolicy}).
@@ -52,6 +55,31 @@ public class Voucher {
 
     public Voucher(String code) {
         this.code = code;
+    }
+
+    /**
+     * Voucher.isUsable() (FR-14 step 2): uses left, the policy allows this customer now (VoucherPolicy.isAvailable()), and
+     * the product amount reaches the minimum order value (BR-07).
+     */
+    public boolean isUsable(LocalDateTime now, CustomerLevel level, BigDecimal productAmount) {
+        return quantity > 0 && policy.isAvailable(now, level) && productAmount.compareTo(policy.getMinOrderValue()) >= 0;
+    }
+
+    /**
+     * Voucher.calcDiscount() (BR-07): PERCENT gives the percentage of the product amount rounded to thousands (BR-21) and
+     * capped by maxDiscount when set; FIXED_AMOUNT gives the voucher value. Never more than the product amount.
+     */
+    public BigDecimal calcDiscount(BigDecimal productAmount) {
+        BigDecimal discount;
+        if (discountType == DiscountType.PERCENT) {
+            discount = Money.roundToThousand(productAmount.multiply(discountValue).divide(BigDecimal.valueOf(100)));
+            if (policy.getMaxDiscount() != null && discount.compareTo(policy.getMaxDiscount()) > 0) {
+                discount = policy.getMaxDiscount();
+            }
+        } else {
+            discount = discountValue;
+        }
+        return discount.min(productAmount).setScale(0, RoundingMode.HALF_UP);
     }
 
     public String getCode() {

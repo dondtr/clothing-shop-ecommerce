@@ -112,8 +112,14 @@
               </div>
               <p class="small text-muted">Chưa gồm phí vận chuyển 20.000 ₫ và voucher. Dòng ngừng bán, hết hàng hoặc vượt tồn kho không được tính.</p>
               <c:if test="${cart.hasProblems}">
-                <p class="small text-danger mb-0">Có sản phẩm cần điều chỉnh trước khi đặt hàng (đánh dấu màu vàng).</p>
+                <p class="small text-danger">Có sản phẩm cần điều chỉnh trước khi đặt hàng (đánh dấu màu vàng).</p>
               </c:if>
+              <c:choose>
+                <c:when test="${cart.orderableCount > 0}">
+                  <a href="${ctx}/checkout" class="btn btn-primary btn-lg btn-block">Tiến hành đặt hàng</a>
+                </c:when>
+                <c:otherwise><button type="button" class="btn btn-secondary btn-lg btn-block" disabled>Tiến hành đặt hàng</button></c:otherwise>
+              </c:choose>
             </div>
           </div>
         </form>

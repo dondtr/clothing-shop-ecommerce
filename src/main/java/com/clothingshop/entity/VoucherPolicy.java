@@ -33,6 +33,19 @@ public class VoucherPolicy {
     public VoucherPolicy() {
     }
 
+    /**
+     * VoucherPolicy.isAvailable() (FR-14 step 2): startDate ≤ now ≤ endDate, and the voucher is for every customer (ALL)
+     * or for the customer's level (BR-06).
+     */
+    public boolean isAvailable(LocalDateTime now, CustomerLevel level) {
+        return !now.isBefore(startDate) && !now.isAfter(endDate) && isFor(level);
+    }
+
+    /** Whether a customer of {@code level} may use the voucher (BR-06). */
+    public boolean isFor(CustomerLevel level) {
+        return eligibleCustomer == EligibleCustomer.ALL || eligibleCustomer.name().equals(level.name());
+    }
+
     public EligibleCustomer getEligibleCustomer() {
         return eligibleCustomer;
     }
