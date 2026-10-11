@@ -8,9 +8,13 @@ import com.clothingshop.service.CatalogService;
 import com.clothingshop.service.CheckoutService;
 import com.clothingshop.service.CustomerService;
 import com.clothingshop.service.DashboardService;
+import com.clothingshop.service.DeliveryLinks;
+import com.clothingshop.service.DeliveryService;
 import com.clothingshop.service.EmailService;
 import com.clothingshop.service.EmployeeService;
 import com.clothingshop.service.InMemoryCartStore;
+import com.clothingshop.service.OrderQueries;
+import com.clothingshop.service.OrderService;
 import com.clothingshop.service.PasswordResetService;
 import com.clothingshop.service.PaymentService;
 import com.clothingshop.service.PendingRegistrationStore;
@@ -75,6 +79,13 @@ public class AppContextListener implements ServletContextListener {
         if (vnpay == null) {
             LOG.info("VNPAY is not configured (vnpay.tmnCode, vnpay.hashSecret): checkout offers COD only");
         }
+        DeliveryLinks links = new DeliveryLinks(baseUrl(context));
+        register(context, links);
+        register(context, new OrderQueries(clock));
+        OrderService orders = new OrderService(payments, notifications, links, clock);
+        register(context, orders);
+        DeliveryService delivery = new DeliveryService(notifications, links, clock);
+        register(context, delivery);
         register(context, new WishlistService(clock));
         register(context, new CustomerService());
         EmployeeService employees = new EmployeeService(clock);
@@ -84,6 +95,9 @@ public class AppContextListener implements ServletContextListener {
         if (Boolean.parseBoolean(AppConfig.get("scheduler.enabled", "true"))) {
             scheduler = new Scheduler(clock);
             scheduler.everyMinute("J7 VNPAY reconciliation", payments::reconcilePending);
+            scheduler.daily("J1 reminder after 3 days", delivery::sendReminders, false);
+            scheduler.daily("J2 automatic completion", orders::autoComplete, true);
+            scheduler.daily("J3 COD orders not shipped in 15 days", orders::autoCancelCod, true);
         } else {
             LOG.warn("Scheduled tasks J1 - J7 are disabled (scheduler.enabled=false)");
         }
@@ -128,6 +142,18 @@ public class AppContextListener implements ServletContextListener {
                 }
             }
         }
+    }
+
+    /**
+     * Absolute address used in links sent by email from scheduled tasks, where there is no request: {@code app.baseUrl},
+     * or http://localhost:8080 with the context path during development.
+     */
+    private static String baseUrl(ServletContext context) {
+        return AppConfig.get("app.baseUrl").orElseGet(() -> {
+            String fallback = "http://localhost:8080" + context.getContextPath();
+            LOG.warn("app.baseUrl is not set; links in emails use {}", fallback);
+            return fallback;
+        });
     }
 
     private static void register(ServletContext context, Object service) {

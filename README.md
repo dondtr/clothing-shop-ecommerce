@@ -195,6 +195,10 @@ Thanh toán VNPAY (FR-13) chỉ bật khi có đủ `vnpay.tmnCode` và `vnpay.h
 | `/checkout` | Đặt hàng (FR-12, FR-14, FR-15): chọn dòng trong giỏ, địa chỉ đã lưu (chọn sẵn mặc định) hoặc địa chỉ mới (được lưu vào sổ địa chỉ), ghi chú tối đa 500 ký tự, mã voucher, phương thức thanh toán; xem trước tiền sản phẩm, tiền giảm voucher, phí vận chuyển, tổng tiền; "Xác nhận mua hàng" tạo đơn COD |
 | `/payment/vnpay-ipn` | VNPAY gọi để báo kết quả (FR-13 bước 4): kiểm tra chữ ký, mã đơn, số tiền; thành công thì thanh toán PAID, xóa các dòng đã đặt khỏi giỏ, xét hạng; thất bại thì xóa đơn chờ, trả tồn kho và lượt voucher; nhận lại kết quả đã xử lý thì không đổi gì |
 | `/payment/vnpay-return` | Trang khách quay về từ VNPAY: hiển thị "Giao dịch thành công", "Đang xử lý" (tự kiểm tra lại) hoặc "Thanh toán không thành công" theo trạng thái thanh toán |
+| `/orders`, `/orders/detail?id=...` | Đơn hàng của khách (FR-16): mới nhất trước; chi tiết có dòng hàng (đơn giá = thành tiền / số lượng), địa chỉ, người nhận, thanh toán, trạng thái, sự cố giao hàng, yêu cầu trả hàng; nút Hủy đơn (FR-17, khi chưa giao thành công), Đã nhận hàng (FR-19, khi đang giao) |
+| `/order-action?token=...` | Nút trong email E1, E2 (FR-19, FR-20): không cần đăng nhập, không hết hạn, có chữ ký; "Đã nhận hàng" hoàn tất đơn đang giao, "Chưa thấy hàng đâu" ghi nhận sự cố; đơn không còn đang giao thì chỉ hiển thị trạng thái (Q24) |
+| `/staff/orders` | Đơn hàng cho nhân viên, lọc theo trạng thái; chi tiết đơn có nút Xác nhận (PENDING → CONFIRMED), Bàn giao vận chuyển (→ SHIPPING, ghi shippedAt, gửi E1) (FR-18), Giao không thành công – hủy đơn (FR-23) |
+| `/staff/delivery-issues` | Báo "Chưa thấy hàng đâu" đang chờ (FR-42 bước 3); xử lý bằng Giao lại hàng (trừ tồn kho thêm một lần, chỉ khi đủ hàng) hoặc Đã giải quyết, nhập lý do và cách giải quyết để gửi trong email E3/E4 (FR-21) |
 | `/vouchers` | Voucher khách hàng dùng được ngay (FR-39): còn lượt, đang hiệu lực, dành cho mọi khách hàng hoặc đúng hạng |
 | `/wishlist` | Danh sách yêu thích (FR-10): thêm, bỏ từ trang chi tiết (`POST /wishlist/add`, `/wishlist/remove`); lần thêm đầu tạo `Wishlist`; lưu dòng khách đang xem nhưng mỗi mặt hàng chỉ một lần; mặt hàng không còn bán vẫn nằm trong danh sách, được đánh dấu và không mở trang mua |
 
@@ -221,6 +225,8 @@ Ghi chú kỹ thuật:
 - Lượt voucher cập nhật bằng SQL thuần trên bảng `Voucher`: entity `Voucher` gồm 2 bảng (bảng phụ `VoucherPolicy`), câu UPDATE hàng loạt bằng JPQL trên entity như vậy có thể khiến Hibernate tạo bảng tạm, mà tài khoản CSDL của ứng dụng không có quyền.
 - VNPAY (Q58): chọn VNPAY thì đơn chờ thanh toán được tạo như đơn COD (giữ hàng và lượt voucher) với `Payment` VNPAY UNPAID, rồi khách được chuyển sang VNPAY với mã giao dịch = mã đơn, hạn thanh toán = giờ đặt + 15 phút; giỏ chưa bị xóa. Đơn chờ không hiện với khách hàng, nhân viên, thống kê (BR-26). Mọi thay đổi khóa dòng `Payment` và kiểm tra còn UNPAID nên IPN và J7 đến cùng lúc không xử lý một đơn hai lần.
 - Tác vụ J7 (mỗi phút): đơn chờ đã quá hạn thì gọi API truy vấn (querydr): đã thanh toán → PAID; không có giao dịch (91), chưa hoàn tất hoặc lỗi → xóa đơn chờ; không truy vấn được hoặc kết quả không có chữ ký hợp lệ → giữ nguyên, thử lại lần sau.
+- Hủy đơn (FR-17, FR-23, FR-24) dùng chung một xử lý: đơn VNPAY đã thanh toán thì gọi API hoàn tiền trước, chỉ hủy khi hoàn tiền thành công (Q65); sau đó trong một giao dịch: CANCELLED, cộng lại tồn kho từng dòng (kể cả đang giao, Q28), hoàn lượt voucher, COD UNPAID → FAILED hoặc VNPAY PAID → REFUND (xét lại hạng), đóng sự cố giao hàng đang mở; rồi gửi E6. Mọi chuyển trạng thái khóa dòng `Order` và kiểm tra lại trạng thái, chỉ cho phép đúng bảng 6.1.
+- Tác vụ hằng ngày: J1 gửi E2 cho đơn bàn giao vận chuyển trong khoảng [hôm nay − 4 ngày, hôm nay − 3 ngày); J2 tự hoàn tất đơn đang giao 7 ngày sau `shippedAt` (hoặc `resolvedAt` nếu đã xử lý sự cố), không khi có sự cố đang mở; J3 hủy đơn COD chưa giao quá 15 ngày. Link trong email do tác vụ gửi dùng `app.baseUrl`.
 - `Scheduler` chạy J1 – J7 trên một luồng nền theo giờ Việt Nam: J7 mỗi phút, các tác vụ còn lại lúc 00:00 hằng ngày; mỗi lần chạy đều ghi log. J2, J3, J5, J6 kiểm tra trước khi làm nên chạy bù một lần sau khi khởi động; J1, J4 không chạy bù vì phải chạy đúng một lần mỗi ngày.
 - JSP trên Tomcat 11 (EL 6.0) đọc record qua các thành phần của record, không gọi getter hay phương thức khác; giá trị nào trang cần (kể cả giá trị tính ra như `onSale`) phải là thành phần của record.
 
@@ -228,7 +234,7 @@ Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 
 
 ## Kiểm tra đã chạy
 
-- `mvnw.cmd clean package`: 94 test JUnit đạt (gồm hai khách cùng mua món hàng cuối: chỉ một đơn được tạo, tồn kho không âm), tạo được `target/clothing-shop.war`.
+- `mvnw.cmd clean package`: 104 test JUnit đạt (gồm hai khách cùng mua món hàng cuối: chỉ một đơn được tạo, tồn kho không âm), tạo được `target/clothing-shop.war`.
 - MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
 - Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
 - Tomcat 11.0.24 + MySQL 26.7.0 tạm, nạp `seed-dev.sql`: cửa hàng hiện 7 mặt hàng (mặt hàng không bán bị ẩn); lọc danh mục, tên có dấu, màu, khoảng giá sau giảm cho đúng kết quả; giá nhập sai báo lỗi; giá giảm 15% hiện 150.000 → 128.000; trang chi tiết hiện đánh giá (4,5/5); mặt hàng không bán và `id` không tồn tại trả về 404.
@@ -238,6 +244,7 @@ Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 
 - Khu quản lý trên Tomcat + MySQL tạm: tài khoản quản lý được tạo từ cấu hình lúc khởi động; tạo nhân viên, tạo trùng tên/email bị từ chối; nhân viên không vào được `/admin/*` (403); khóa nhân viên thì phiên đang mở bị đăng xuất ở request kế tiếp và không đăng nhập lại được, mở khóa thì đăng nhập được; không khóa được quản lý; khách hàng vào `/staff` nhận 403; nâng hạng, nâng từ trang cũ bị từ chối, bật tự hạ hạng thì hạng được xét lại.
 - Đặt hàng trên Tomcat + MySQL tạm: tổng tiền đúng FR-15 (376.000 − voucher 10% làm tròn 38.000 + 20.000 = 358.000); voucher sai hạng, hết lượt, chưa đến ngày, hết hạn, không tồn tại đều báo đúng lý do; thiếu địa chỉ báo lỗi từng ô; tổng tiền đã đổi thì không tạo đơn; đặt thành công thì CSDL có đơn, chi tiết, thanh toán COD UNPAID, tồn kho và lượt voucher bị trừ, địa chỉ mới được lưu, giỏ được dọn.
 - VNPAY trên Tomcat + MySQL tạm, với một chương trình Python đóng vai VNPAY (ký và kiểm tra chữ ký HMAC-SHA512 độc lập với mã Java): URL thanh toán có chữ ký đúng, số tiền = tổng tiền × 100, hạn 15 phút; đơn chờ giữ hàng và lượt voucher, giỏ chưa bị xóa; IPN sai chữ ký trả 97, sai số tiền trả 04, thành công trả 00 (thanh toán PAID, giỏ được dọn), gửi lại trả 02; khách hủy thì đơn chờ bị xóa, tồn kho trả lại; J7 gửi querydr có chữ ký đúng, xác nhận đơn đã trả tiền mà lỡ IPN và xóa đơn bỏ dở.
+- Vòng đời đơn trên Tomcat + MySQL tạm: bàn giao trước khi xác nhận bị từ chối; xác nhận, bàn giao gửi E1; bấm nút E1 không cần đăng nhập thì đơn giao thành công, COD chuyển PAID, bấm lại không đổi gì; "Chưa thấy hàng đâu" ghi nhận một lần, link bị sửa thì báo không hợp lệ; nhân viên xử lý sự cố, E4 chứa lý do và cách giải quyết đã nhập; khách hủy đơn đang giao thì tồn kho được cộng lại, thanh toán FAILED, E6 đúng lý do; không hủy được đơn đã giao thành công; đơn VNPAY giao không thành công: VNPAY từ chối hoàn tiền thì đơn giữ nguyên, hoàn tiền được thì đơn CANCELLED, thanh toán REFUND (yêu cầu hoàn tiền có chữ ký đúng); sau khi khởi động lại, J2 tự hoàn tất đơn đã giao 8 ngày trước, J3 hủy đơn COD đặt 16 ngày trước.
 - **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven; sandbox VNPAY thật (cần mã TMN và khóa bí mật của nhóm).
 
 ## Mô hình entity
@@ -257,4 +264,4 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
 
 ## Chưa làm
 
-- Các chức năng còn lại của đặc tả: vòng đời đơn hàng, giao nhận, trả hàng, đánh giá, quản lý sản phẩm, voucher tự động, thống kê...
+- Các chức năng còn lại của đặc tả: trả hàng, đánh giá, quản lý sản phẩm, voucher tự động, thống kê...
