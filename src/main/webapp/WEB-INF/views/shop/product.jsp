@@ -132,7 +132,15 @@
           <div class="review-item">
             <div class="d-flex justify-content-between">
               <strong class="text-black"><c:out value="${r.authorName}"/></strong>
-              <small class="text-muted">${f:dateTime(r.createdAt)}</small>
+              <small class="text-muted">${f:dateTime(r.createdAt)}
+                <c:if test="${sessionScope.auth.customer and sessionScope.auth.id == r.customerId}">
+                  <form action="${ctx}/reviews/delete" method="post" class="d-inline ml-2" onsubmit="return confirm('Xóa đánh giá của bạn?');">
+                    <input type="hidden" name="_csrf" value="${sessionScope.csrfToken}">
+                    <input type="hidden" name="reviewId" value="${r.id}">
+                    <input type="hidden" name="next" value="/product?id=${selected.id}">
+                    <button type="submit" class="btn btn-link btn-sm p-0">Xóa</button>
+                  </form>
+                </c:if></small>
             </div>
             <div class="rating-stars" aria-label="${r.rating} trên 5 sao">${f:stars(r.rating)}</div>
             <c:if test="${not empty r.comment}"><p class="mb-0 text-pre-line"><c:out value="${r.comment}"/></p></c:if>

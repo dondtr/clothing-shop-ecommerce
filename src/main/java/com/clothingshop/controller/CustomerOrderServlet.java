@@ -3,8 +3,10 @@ package com.clothingshop.controller;
 import com.clothingshop.dto.AuthUser;
 import com.clothingshop.dto.FlashMessage;
 import com.clothingshop.exception.BusinessException;
+import com.clothingshop.exception.ValidationException;
 import com.clothingshop.service.OrderQueries;
 import com.clothingshop.service.OrderService;
+import com.clothingshop.service.ReturnService;
 import com.clothingshop.util.WebUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -15,10 +17,10 @@ import java.io.IOException;
 
 /**
  * The customer's orders (FR-16): {@code /orders} lists them, {@code /orders/detail?id=} shows one with its buttons;
- * POST {@code /orders/cancel} (FR-17) and {@code /orders/received} (FR-19). {@code CustomerAreaFilter} lets only
+ * POST {@code /orders/cancel} (FR-17), {@code /orders/received} (FR-19) and {@code /orders/return} (FR-25). {@code CustomerAreaFilter} lets only
  * signed-in customers in.
  */
-@WebServlet({"/orders", "/orders/detail", "/orders/cancel", "/orders/received"})
+@WebServlet({"/orders", "/orders/detail", "/orders/cancel", "/orders/received", "/orders/return"})
 public class CustomerOrderServlet extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
@@ -66,11 +68,18 @@ public class CustomerOrderServlet extends HttpServlet {
                             ? "Cảm ơn bạn! Đơn hàng đã giao thành công; bạn có thể đánh giá sản phẩm."
                             : "Đơn hàng hiện ở trạng thái \"" + r.status().getLabel() + "\".");
                 }
+                case "/orders/return" -> {
+                    AppContextListener.service(getServletContext(), ReturnService.class)
+                            .submit(user.getId(), id, request.getParameter("reason"));
+                    FlashMessage.put(request.getSession(), "success", "Đã gửi yêu cầu trả hàng; cửa hàng sẽ xem xét và báo kết quả qua email.");
+                }
                 default -> {
                     response.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
                     return;
                 }
             }
+        } catch (ValidationException e) {
+            FlashMessage.put(request.getSession(), "danger", String.join(" ", e.getErrors().values()));
         } catch (BusinessException e) {
             FlashMessage.put(request.getSession(), "danger", e.getMessage());
         }

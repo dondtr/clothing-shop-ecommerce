@@ -124,7 +124,8 @@ public class CatalogService {
         int selectedId = rows.stream().anyMatch(p -> p.getId() == requestedId) ? requestedId : pickRow(rows, null).getId();
         ProductDetail.Variant selected = variants.stream().filter(v -> v.id() == selectedId).findFirst().orElseThrow();
         List<ProductDetail.ReviewItem> reviewItems = reviews.stream()
-                .map(r -> new ProductDetail.ReviewItem(r.getCustomer().getFullName(), r.getRating(), r.getComment(), r.getCreatedAt()))
+                .map(r -> new ProductDetail.ReviewItem(r.getId(), r.getCustomer().getId(), r.getCustomer().getFullName(),
+                        r.getRating(), r.getComment(), r.getCreatedAt()))
                 .toList();
         BigDecimal average = reviews.isEmpty() ? null
                 : BigDecimal.valueOf(reviews.stream().mapToInt(Review::getRating).sum())
