@@ -6,6 +6,7 @@ import com.clothingshop.entity.PaymentMethod;
 import com.clothingshop.exception.BusinessException;
 import com.clothingshop.exception.ValidationException;
 import com.clothingshop.service.CheckoutService;
+import com.clothingshop.service.PaymentService;
 import com.clothingshop.util.WebUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -19,8 +20,9 @@ import java.util.Set;
 
 /**
  * Checkout (FR-12, FR-14, FR-15): GET {@code /checkout} shows the cart lines, address, voucher and amounts; POST with
- * {@code action=preview} recomputes them; POST with {@code action=place} places the order. {@code CustomerAreaFilter}
- * lets only signed-in customers in.
+ * {@code action=preview} recomputes them; POST with {@code action=place} places the order: a COD order is done, a VNPAY
+ * order waits for payment and the customer goes to VNPAY (FR-13). {@code CustomerAreaFilter} lets only signed-in
+ * customers in.
  */
 @WebServlet({"/checkout", "/checkout/success"})
 public class CheckoutServlet extends HttpServlet {
@@ -48,6 +50,13 @@ public class CheckoutServlet extends HttpServlet {
         if (form.expectedTotal() != null) {
             try {
                 int orderId = service().place(customerId, form);
+                if (form.method() == PaymentMethod.VNPAY) {
+                    // FR-13 step 3: the waiting order exists; the customer pays on VNPAY's page
+                    response.sendRedirect(AppContextListener.service(getServletContext(), PaymentService.class)
+                            .paymentUrl(customerId, orderId, request.getRemoteAddr(),
+                                    WebUtil.absoluteUrl(request, "/payment/vnpay-return")));
+                    return;
+                }
                 FlashMessage.put(request.getSession(), "success", "Đặt hàng thành công. Mã đơn của bạn là #" + orderId + ".");
                 response.sendRedirect(request.getContextPath() + "/checkout/success?id=" + orderId);
                 return;
