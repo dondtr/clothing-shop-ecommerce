@@ -12,10 +12,15 @@ import com.clothingshop.service.EmailService;
 import com.clothingshop.service.EmployeeService;
 import com.clothingshop.service.InMemoryCartStore;
 import com.clothingshop.service.PasswordResetService;
+import com.clothingshop.service.PaymentService;
 import com.clothingshop.service.PendingRegistrationStore;
 import com.clothingshop.service.ProfileService;
+import com.clothingshop.service.Scheduler;
+import com.clothingshop.service.VnpayClient;
+import com.clothingshop.service.VnpayGateway;
 import com.clothingshop.service.VoucherService;
 import com.clothingshop.service.WishlistService;
+import com.clothingshop.util.AppConfig;
 import com.clothingshop.util.JpaUtil;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletContextEvent;
@@ -44,6 +49,7 @@ public class AppContextListener implements ServletContextListener {
     static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     private AsyncEmailService notifications;
+    private Scheduler scheduler;
 
     @Override
     public void contextInitialized(ServletContextEvent event) {
@@ -61,12 +67,26 @@ public class AppContextListener implements ServletContextListener {
         CartService cart = new CartService(new InMemoryCartStore(clock), clock);
         register(context, cart);
         register(context, new VoucherService(clock));
-        register(context, new CheckoutService(cart, addresses, clock, false));
+        VnpayGateway vnpay = VnpayClient.fromConfig(clock).orElse(null);
+        PaymentService payments = new PaymentService(vnpay, cart, clock,
+                Boolean.parseBoolean(AppConfig.get("vnpay.processReturnUrl", "false")));
+        register(context, payments);
+        register(context, new CheckoutService(cart, addresses, clock, vnpay != null));
+        if (vnpay == null) {
+            LOG.info("VNPAY is not configured (vnpay.tmnCode, vnpay.hashSecret): checkout offers COD only");
+        }
         register(context, new WishlistService(clock));
         register(context, new CustomerService());
         EmployeeService employees = new EmployeeService(clock);
         register(context, employees);
         register(context, new DashboardService());
+
+        if (Boolean.parseBoolean(AppConfig.get("scheduler.enabled", "true"))) {
+            scheduler = new Scheduler(clock);
+            scheduler.everyMinute("J7 VNPAY reconciliation", payments::reconcilePending);
+        } else {
+            LOG.warn("Scheduled tasks J1 - J7 are disabled (scheduler.enabled=false)");
+        }
 
         try {
             employees.ensureAdmin();
@@ -78,6 +98,9 @@ public class AppContextListener implements ServletContextListener {
 
     @Override
     public void contextDestroyed(ServletContextEvent event) {
+        if (scheduler != null) {
+            scheduler.close();
+        }
         if (notifications != null) {
             notifications.close();
         }

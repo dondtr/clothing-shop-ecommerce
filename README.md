@@ -141,12 +141,28 @@ Hệ thống có đúng một tài khoản quản lý, tạo sẵn khi triển k
 
 Đã có tài khoản quản lý thì các khóa này không còn tác dụng; nên xóa `admin.password` khỏi cấu hình sau lần khởi động đầu. Quản lý tạo tài khoản nhân viên trong khu quản lý.
 
-### 5. Cấu hình khác
+### 5. VNPAY
+
+Thanh toán VNPAY (FR-13) chỉ bật khi có đủ `vnpay.tmnCode` và `vnpay.hashSecret` (lấy ở trang quản trị merchant của VNPAY; môi trường thử là sandbox). Thiếu thì trang đặt hàng chỉ cho chọn COD.
+
+| Khóa | Bắt buộc | Ý nghĩa |
+|---|---|---|
+| `vnpay.tmnCode`, `vnpay.hashSecret` | Có (để bật VNPAY) | Mã website và khóa bí mật để ký HMAC-SHA512 |
+| `vnpay.payUrl`, `vnpay.apiUrl` | Không | Mặc định là sandbox: `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html`, `https://sandbox.vnpayment.vn/merchant_webapi/api/transaction` |
+| `vnpay.serverIp` | Không | IP máy chủ cửa hàng gửi kèm khi gọi API truy vấn, hoàn tiền (mặc định 127.0.0.1) |
+| `vnpay.paymentTimeoutMinutes` | Không | Hạn thanh toán của đơn chờ, mặc định 15 phút (Q37) |
+| `vnpay.processReturnUrl` | Không | Mặc định `false`: trang kết quả chỉ hiển thị trạng thái, IPN quyết định kết quả (FR-13). Khi chạy trên máy cá nhân mà VNPAY không gọi được IPN tới, đặt `true` để trang kết quả cũng áp dụng kết quả có chữ ký VNPAY gửi về; nếu không, đơn chờ chỉ được xác nhận khi J7 truy vấn (sau hạn thanh toán) |
+
+Đăng ký IPN URL `https://<tên miền>/clothing-shop/payment/vnpay-ipn` trong trang merchant của VNPAY; Return URL do ứng dụng gửi theo `app.baseUrl` (`…/payment/vnpay-return`).
+
+### 6. Cấu hình khác
 
 | Khóa | Bắt buộc | Ý nghĩa |
 |---|---|---|
 | `app.secret` | Nên có | Khóa bí mật (ít nhất 32 ký tự ngẫu nhiên) để ký link trong email. Thiếu thì mỗi lần khởi động tự sinh khóa tạm, link đã gửi hết hiệu lực khi khởi động lại |
 | `app.baseUrl` | Khi triển khai | Địa chỉ gốc để tạo link trong email, ví dụ `https://shop.example.com/clothing-shop`. Thiếu thì lấy theo request (chỉ dùng khi phát triển) |
+| `shop.shippingFee` | Không | Phí vận chuyển mỗi đơn, mặc định 20000 (BR-03) |
+| `scheduler.enabled` | Không | Mặc định `true`: chạy tác vụ tự động J1 – J7. Đặt `false` trên máy chủ thứ hai nếu chạy nhiều máy chủ |
 | `mail.smtp.host`, `mail.smtp.port`, `mail.smtp.username`, `mail.smtp.password`, `mail.smtp.starttls`, `mail.from` | Khi cần gửi email thật | Thiếu `mail.smtp.host` thì email **không được gửi** mà được ghi vào log (mở link xác thực từ log khi phát triển) |
 
 ## Deploy lên Tomcat 11
@@ -177,6 +193,8 @@ Hệ thống có đúng một tài khoản quản lý, tạo sẵn khi triển k
 | `/product?id=...` | Chi tiết mặt hàng (FR-08): `id` là một dòng bất kỳ của mặt hàng; chọn màu + kích thước để xem ảnh và tồn kho của dòng đó; điểm trung bình và đánh giá của mọi dòng; mặt hàng không bán trả về 404. Khách hàng đã đăng nhập có nút "Thêm vào giỏ hàng" (dòng hết hàng không thêm được) và "Thêm vào danh sách yêu thích" |
 | `/cart` | Giỏ hàng (FR-09): thêm từ trang chi tiết (`POST /cart/add`), đổi số lượng (`POST /cart/update`), xóa dòng (`POST /cart/remove`); đơn giá theo giá sau giảm hiện tại; dòng ngừng bán, hết hàng hoặc vượt tồn kho được đánh dấu và không tính vào tổng |
 | `/checkout` | Đặt hàng (FR-12, FR-14, FR-15): chọn dòng trong giỏ, địa chỉ đã lưu (chọn sẵn mặc định) hoặc địa chỉ mới (được lưu vào sổ địa chỉ), ghi chú tối đa 500 ký tự, mã voucher, phương thức thanh toán; xem trước tiền sản phẩm, tiền giảm voucher, phí vận chuyển, tổng tiền; "Xác nhận mua hàng" tạo đơn COD |
+| `/payment/vnpay-ipn` | VNPAY gọi để báo kết quả (FR-13 bước 4): kiểm tra chữ ký, mã đơn, số tiền; thành công thì thanh toán PAID, xóa các dòng đã đặt khỏi giỏ, xét hạng; thất bại thì xóa đơn chờ, trả tồn kho và lượt voucher; nhận lại kết quả đã xử lý thì không đổi gì |
+| `/payment/vnpay-return` | Trang khách quay về từ VNPAY: hiển thị "Giao dịch thành công", "Đang xử lý" (tự kiểm tra lại) hoặc "Thanh toán không thành công" theo trạng thái thanh toán |
 | `/vouchers` | Voucher khách hàng dùng được ngay (FR-39): còn lượt, đang hiệu lực, dành cho mọi khách hàng hoặc đúng hạng |
 | `/wishlist` | Danh sách yêu thích (FR-10): thêm, bỏ từ trang chi tiết (`POST /wishlist/add`, `/wishlist/remove`); lần thêm đầu tạo `Wishlist`; lưu dòng khách đang xem nhưng mỗi mặt hàng chỉ một lần; mặt hàng không còn bán vẫn nằm trong danh sách, được đánh dấu và không mở trang mua |
 
@@ -201,13 +219,16 @@ Ghi chú kỹ thuật:
 - Đơn được dựng từ giỏ lưu trên server, không tin dữ liệu trình duyệt gửi (mục 3.4). Trang đặt hàng gửi kèm tổng tiền khách đã xem; tổng tính lúc tạo đơn khác (giá, giảm giá, voucher vừa đổi) thì không tạo đơn và hiện tổng mới để khách xác nhận lại.
 - Tiền giảm voucher (BR-07): phần trăm thì làm tròn đến hàng nghìn rồi giới hạn bởi `maxDiscount`; số tiền cố định thì bằng giá trị voucher; không vượt tiền sản phẩm. Phí vận chuyển 20.000 ₫ (đổi được bằng `shop.shippingFee`).
 - Lượt voucher cập nhật bằng SQL thuần trên bảng `Voucher`: entity `Voucher` gồm 2 bảng (bảng phụ `VoucherPolicy`), câu UPDATE hàng loạt bằng JPQL trên entity như vậy có thể khiến Hibernate tạo bảng tạm, mà tài khoản CSDL của ứng dụng không có quyền.
+- VNPAY (Q58): chọn VNPAY thì đơn chờ thanh toán được tạo như đơn COD (giữ hàng và lượt voucher) với `Payment` VNPAY UNPAID, rồi khách được chuyển sang VNPAY với mã giao dịch = mã đơn, hạn thanh toán = giờ đặt + 15 phút; giỏ chưa bị xóa. Đơn chờ không hiện với khách hàng, nhân viên, thống kê (BR-26). Mọi thay đổi khóa dòng `Payment` và kiểm tra còn UNPAID nên IPN và J7 đến cùng lúc không xử lý một đơn hai lần.
+- Tác vụ J7 (mỗi phút): đơn chờ đã quá hạn thì gọi API truy vấn (querydr): đã thanh toán → PAID; không có giao dịch (91), chưa hoàn tất hoặc lỗi → xóa đơn chờ; không truy vấn được hoặc kết quả không có chữ ký hợp lệ → giữ nguyên, thử lại lần sau.
+- `Scheduler` chạy J1 – J7 trên một luồng nền theo giờ Việt Nam: J7 mỗi phút, các tác vụ còn lại lúc 00:00 hằng ngày; mỗi lần chạy đều ghi log. J2, J3, J5, J6 kiểm tra trước khi làm nên chạy bù một lần sau khi khởi động; J1, J4 không chạy bù vì phải chạy đúng một lần mỗi ngày.
 - JSP trên Tomcat 11 (EL 6.0) đọc record qua các thành phần của record, không gọi getter hay phương thức khác; giá trị nào trang cần (kể cả giá trị tính ra như `onSale`) phải là thành phần của record.
 
 Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 3.0, phải giữ dòng ghi công ở chân trang), dựa trên bản JSP đã Việt hóa của nhóm. Các liên kết tới chức năng chưa làm (đơn hàng, tài khoản...) hiện mở trang 404 sau khi đăng nhập. Ảnh sản phẩm mẫu cũng lấy từ template này.
 
 ## Kiểm tra đã chạy
 
-- `mvnw.cmd clean package`: 84 test JUnit đạt (gồm hai khách cùng mua món hàng cuối: chỉ một đơn được tạo, tồn kho không âm), tạo được `target/clothing-shop.war`.
+- `mvnw.cmd clean package`: 94 test JUnit đạt (gồm hai khách cùng mua món hàng cuối: chỉ một đơn được tạo, tồn kho không âm), tạo được `target/clothing-shop.war`.
 - MySQL Server 26.7.0 (một bản chạy tạm, dữ liệu riêng): `database/schema.sql` tạo đủ 16 bảng, 19 khóa ngoại; Hibernate kiểm tra ánh xạ (`hibernate.hbm2ddl.auto=validate`, chỉ dùng lúc kiểm tra) không báo lỗi.
 - Tomcat 11.0.24 (một bản chạy tạm) + MySQL trên: đăng ký sai thì báo lỗi từng ô; đăng ký đúng thì chưa có tài khoản trong CSDL; mở link trong email (lấy từ log) thì tài khoản được tạo, dùng lại link bị từ chối; đăng nhập bằng email viết hoa thành công, sai mật khẩu bị từ chối; đăng xuất; POST thiếu token CSRF bị chặn (403).
 - Tomcat 11.0.24 + MySQL 26.7.0 tạm, nạp `seed-dev.sql`: cửa hàng hiện 7 mặt hàng (mặt hàng không bán bị ẩn); lọc danh mục, tên có dấu, màu, khoảng giá sau giảm cho đúng kết quả; giá nhập sai báo lỗi; giá giảm 15% hiện 150.000 → 128.000; trang chi tiết hiện đánh giá (4,5/5); mặt hàng không bán và `id` không tồn tại trả về 404.
@@ -216,7 +237,8 @@ Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 
 - Tài khoản trên Tomcat + MySQL tạm: chưa đăng nhập mở trang tài khoản thì sang trang đăng nhập; lưu thông tin cá nhân, lưu lại từ form cũ bị từ chối; đổi mật khẩu cần mật khẩu cũ đúng; quên mật khẩu với email viết hoa vẫn nhận link (lấy từ log), đặt mật khẩu mới xong thì link hết hiệu lực; xóa địa chỉ mặc định phải chọn hoặc tạo địa chỉ mặc định mới, CSDL luôn còn đúng một địa chỉ mặc định.
 - Khu quản lý trên Tomcat + MySQL tạm: tài khoản quản lý được tạo từ cấu hình lúc khởi động; tạo nhân viên, tạo trùng tên/email bị từ chối; nhân viên không vào được `/admin/*` (403); khóa nhân viên thì phiên đang mở bị đăng xuất ở request kế tiếp và không đăng nhập lại được, mở khóa thì đăng nhập được; không khóa được quản lý; khách hàng vào `/staff` nhận 403; nâng hạng, nâng từ trang cũ bị từ chối, bật tự hạ hạng thì hạng được xét lại.
 - Đặt hàng trên Tomcat + MySQL tạm: tổng tiền đúng FR-15 (376.000 − voucher 10% làm tròn 38.000 + 20.000 = 358.000); voucher sai hạng, hết lượt, chưa đến ngày, hết hạn, không tồn tại đều báo đúng lý do; thiếu địa chỉ báo lỗi từng ô; tổng tiền đã đổi thì không tạo đơn; đặt thành công thì CSDL có đơn, chi tiết, thanh toán COD UNPAID, tồn kho và lượt voucher bị trừ, địa chỉ mới được lưu, giỏ được dọn.
-- **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven.
+- VNPAY trên Tomcat + MySQL tạm, với một chương trình Python đóng vai VNPAY (ký và kiểm tra chữ ký HMAC-SHA512 độc lập với mã Java): URL thanh toán có chữ ký đúng, số tiền = tổng tiền × 100, hạn 15 phút; đơn chờ giữ hàng và lượt voucher, giỏ chưa bị xóa; IPN sai chữ ký trả 97, sai số tiền trả 04, thành công trả 00 (thanh toán PAID, giỏ được dọn), gửi lại trả 02; khách hủy thì đơn chờ bị xóa, tồn kho trả lại; J7 gửi querydr có chữ ký đúng, xác nhận đơn đã trả tiền mà lỡ IPN và xóa đơn bỏ dở.
+- **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven; sandbox VNPAY thật (cần mã TMN và khóa bí mật của nhóm).
 
 ## Mô hình entity
 
@@ -235,4 +257,4 @@ Entity bám theo ERD Clothing E-Commerce (sửa lần 4): 14 entity, 2 lớp nh�
 
 ## Chưa làm
 
-- Các chức năng còn lại của đặc tả: thanh toán VNPAY, quản lý sản phẩm, quản trị...
+- Các chức năng còn lại của đặc tả: vòng đời đơn hàng, giao nhận, trả hàng, đánh giá, quản lý sản phẩm, voucher tự động, thống kê...

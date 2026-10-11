@@ -34,3 +34,17 @@ admin.fullName=
 admin.phone=
 #admin.gender=OTHER
 #admin.dob=1990-01-01
+
+# ---- VNPAY (để trống thì trang đặt hàng chỉ cho chọn COD). Lấy ở trang quản trị merchant của VNPAY.
+vnpay.tmnCode=
+vnpay.hashSecret=
+#vnpay.payUrl=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+#vnpay.apiUrl=https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+#vnpay.serverIp=127.0.0.1
+#vnpay.paymentTimeoutMinutes=15
+# Máy cá nhân mà VNPAY không gọi IPN tới được: đặt true để trang kết quả cũng áp dụng kết quả có chữ ký
+#vnpay.processReturnUrl=false
+
+# ---- Khác
+#shop.shippingFee=20000
+#scheduler.enabled=true
