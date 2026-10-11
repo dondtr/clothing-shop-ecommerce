@@ -44,7 +44,7 @@
                error="${editingCommon ? errors.name : ''}" hint="Đổi tên thì đơn cũ hiển thị tên mới" cssClass="col-md-6"/>
       <t:field name="category" label="Danh mục" required="true" cssClass="col-md-3">
         <select id="category" name="category" class="form-control">
-          <c:forEach items="${categories}" var="c"><option value="${c}" ${(editingCommon ? param.category : p.category) == c ? 'selected' : ''}>${c.label}</option></c:forEach>
+          <c:forEach items="${categories}" var="c"><option value="${c}" ${(editingCommon ? param.category : p.category) == c.name() ? 'selected' : ''}>${c.label}</option></c:forEach>
         </select>
       </t:field>
       <t:field name="basePrice" label="Giá bán (₫)" type="number" value="${editingCommon ? param.basePrice : f:number(p.basePrice)}" required="true"

@@ -3,6 +3,7 @@ package com.clothingshop.controller;
 import com.clothingshop.service.AccountService;
 import com.clothingshop.service.AddressService;
 import com.clothingshop.service.AsyncEmailService;
+import com.clothingshop.service.AutoVoucherService;
 import com.clothingshop.service.CartService;
 import com.clothingshop.service.CartStore;
 import com.clothingshop.service.CatalogService;
@@ -28,6 +29,8 @@ import com.clothingshop.service.ReviewService;
 import com.clothingshop.service.Scheduler;
 import com.clothingshop.service.VnpayClient;
 import com.clothingshop.service.VnpayGateway;
+import com.clothingshop.service.VoucherAdminService;
+import com.clothingshop.service.VoucherSettingsStore;
 import com.clothingshop.service.VoucherService;
 import com.clothingshop.service.WishlistService;
 import com.clothingshop.util.AppConfig;
@@ -100,6 +103,9 @@ public class AppContextListener implements ServletContextListener {
         register(context, new ProductAdminService(carts, clock));
         register(context, new DiscountAdminService(clock));
         DiscountNotifier discountNotifier = new DiscountNotifier(notifications, baseUrl, clock);
+        register(context, new VoucherAdminService(clock));
+        AutoVoucherService autoVouchers = new AutoVoucherService(new VoucherSettingsStore(VoucherSettingsStore.configuredFile(), clock), clock);
+        register(context, autoVouchers);
         register(context, new CustomerService());
         EmployeeService employees = new EmployeeService(clock);
         register(context, employees);
@@ -112,6 +118,8 @@ public class AppContextListener implements ServletContextListener {
             scheduler.daily("J2 automatic completion", orders::autoComplete, true);
             scheduler.daily("J3 COD orders not shipped in 15 days", orders::autoCancelCod, true);
             scheduler.daily("J4 wishlist discount emails", discountNotifier::notifyWishlists, false);
+            scheduler.daily("J5 monthly vouchers", autoVouchers::issueMonthlyVouchers, true);
+            scheduler.daily("J6 holiday vouchers", autoVouchers::createHolidayVouchers, true);
         } else {
             LOG.warn("Scheduled tasks J1 - J7 are disabled (scheduler.enabled=false)");
         }
