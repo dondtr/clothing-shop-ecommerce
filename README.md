@@ -36,6 +36,9 @@ clothing-shop-ecommerce/
 ├── config/                                 Mẫu cấu hình local và Aiven (*.properties.example)
 ├── database/schema.sql                     Tạo CSDL và bảng theo ERD (sửa lần 4)
 ├── database/seed-dev.sql                   Dữ liệu mẫu (sản phẩm, giảm giá, đánh giá, voucher), chỉ dùng trên máy local
+├── Dockerfile, docker/setenv.sh            Image Tomcat 11 + Java 21 (build WAR bằng Maven bên trong)
+├── docker-compose.yml, .env.example        Chạy ứng dụng cùng MySQL 8.4 bằng Docker Compose
+├── docs/huong-dan-docker-va-hosting.md     Hướng dẫn Docker, biến môi trường và hosting
 └── src/main/
     ├── java/com/clothingshop/
     │   ├── controller/   Servlet theo từng trang (khách hàng; khu quản lý Staff*, *Admin*, Statistics; VNPAY IPN/return; link trong email), AppContextListener (tạo service, lịch J1 – J7, tài khoản quản lý)
@@ -180,6 +183,18 @@ Thanh toán VNPAY (FR-13) chỉ bật khi có đủ `vnpay.tmnCode` và `vnpay.h
 2. Chép `target/clothing-shop.war` vào thư mục `webapps` của Tomcat, hoặc deploy qua Tomcat Manager.
 3. Mở `http://localhost:8080/clothing-shop/` (đổi cổng theo cấu hình Tomcat).
 
+## Chạy bằng Docker
+
+Không cần cài JDK, Maven, Tomcat, MySQL; chỉ cần Docker Desktop (hoặc Docker Engine kèm Compose).
+
+```bash
+cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
+# điền mật khẩu MySQL, CLOTHINGSHOP_APP_SECRET, tài khoản quản lý vào .env
+docker compose up -d --build
+```
+
+Mở `http://localhost:8080/` (Docker chạy ứng dụng ở địa chỉ gốc, không có `/clothing-shop`). Cấu hình bằng biến môi trường `CLOTHINGSHOP_<KHÓA>`, nạp dữ liệu mẫu, đưa lên VPS hoặc nền tảng hosting kèm MySQL Aiven: xem [docs/huong-dan-docker-va-hosting.md](docs/huong-dan-docker-va-hosting.md).
+
 ## Chức năng đã làm
 
 | URL | Chức năng |
@@ -270,7 +285,8 @@ Giao diện lấy từ template **Shoppers** của Colorlib (giấy phép CC BY 
 - Quản lý sản phẩm trên Tomcat + MySQL tạm: thêm mặt hàng 2 biến thể, nhập sai (giá lẻ, trùng biến thể, thiếu ảnh) báo từng lỗi; sửa giá trên mọi dòng, lưu từ trang cũ bị từ chối; ngừng bán thì mặt hàng biến mất khỏi cửa hàng (chi tiết trả 404); tạo đợt giảm giá phải qua hộp thoại xác nhận, đợt trùng thời gian bị từ chối, sửa được đợt chưa bắt đầu, không sửa được đợt đang hiệu lực, giá ở cửa hàng 390.000 − 25% = 293.000; biến thể mới nhận các đợt chưa kết thúc; cộng tồn kho, đặt tồn kho từ trang cũ bị từ chối, trừ quá tồn kho bị từ chối; xóa biến thể chưa bán được, đã bán thì không; xóa mặt hàng chưa bán.
 - Voucher trên Tomcat + MySQL tạm: danh sách và tình trạng đúng với dữ liệu mẫu; tạo voucher qua hộp thoại xác nhận (trước khi xác nhận chưa lưu gì); mã dạng ngày lễ, số tiền lẻ, mức tối đa cho voucher số tiền bị từ chối; sửa được voucher chưa bắt đầu, không sửa được voucher đang hiệu lực; trang thiết lập hiện Tết 06/02/2027, Giỗ Tổ 16/04/2027; bật Tết khi chưa nhập loại, giá trị hoặc lệch âm bị từ chối; lưu thiết lập ghi file JSON kèm `enabledAt`; sau khi khởi động lại, J5 phát hành bù LOYAL-102026 (15%) và REGULAR-102026 (50.000 ₫) cho tháng 10.
 - Thống kê trên Tomcat + MySQL tạm: doanh thu, số đơn đã thanh toán, số đơn đặt, số lượng bán ra, số đơn theo trạng thái, top mặt hàng và tồn kho trên trang khớp với truy vấn SQL viết riêng trên cùng CSDL; khoảng 10 ngày ra 10 cột, khoảng cả năm nhóm theo tháng; ngày kết thúc trước ngày bắt đầu, khoảng quá 366 ngày được báo lỗi và hiện tháng này; ngày sai định dạng dùng mặc định; nhân viên và khách hàng nhận 403, chưa đăng nhập thì sang trang đăng nhập.
-- **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven; sandbox VNPAY thật (cần mã TMN và khóa bí mật của nhóm).
+- Docker trên Docker Desktop (Windows): build image chạy đủ test; `docker compose up` tạo đủ 16 bảng với collation `utf8mb4_0900_as_ci`, tài khoản quản lý; nạp dữ liệu mẫu, các trang cửa hàng và khu quản lý mở được; khởi động lại vẫn giữ dữ liệu và thiết lập voucher; biến `PORT` đổi được cổng; kết nối `sslMode=VERIFY_CA` với truststore tạo từ `DB_CA_PEM` thành công khi đúng CA và bị từ chối khi sai CA.
+- **Chưa thử:** gửi email qua SMTP thật; kết nối Aiven; sandbox VNPAY thật (cần mã TMN và khóa bí mật của nhóm); hosting thật (VPS, Caddy/HTTPS, các nền tảng chạy container).
 
 ## Mô hình entity
 

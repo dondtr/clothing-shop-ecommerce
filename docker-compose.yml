@@ -1,0 +1,70 @@
+# ---------------------------------------------------------------------------
+# Chạy Clothing Shop cùng MySQL 8.4 bằng Docker Compose.
+#   1. Chép .env.example thành .env rồi điền giá trị (file .env không được commit).
+#   2. docker compose up -d --build
+#   3. Mở http://localhost:8080/
+# Hướng dẫn đầy đủ: docs/huong-dan-docker-va-hosting.md
+# ---------------------------------------------------------------------------
+name: clothing-shop
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    # Collation phân biệt dấu tiếng Việt, không phân biệt hoa thường (đặc tả mục 3.1)
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_as_ci"]
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Chua dat MYSQL_ROOT_PASSWORD trong file .env}
+      MYSQL_DATABASE: clothing_shop
+      MYSQL_USER: ${DB_USERNAME:-clothing_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Chua dat DB_PASSWORD trong file .env}
+    volumes:
+      - db-data:/var/lib/mysql
+      # Chạy một lần khi volume db-data còn trống: tạo bảng theo ERD
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      # Để nạp dữ liệu mẫu bằng lệnh trong hướng dẫn (seed-dev.sql)
+      - ./database:/database:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+    # Không mở cổng 3306 ra ngoài; ứng dụng gọi MySQL qua mạng nội bộ của Compose
+
+  app:
+    build: .
+    image: clothing-shop:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"
+    environment:
+      CLOTHINGSHOP_DB_URL: jdbc:mysql://db:3306/clothing_shop
+      CLOTHINGSHOP_DB_USERNAME: ${DB_USERNAME:-clothing_app}
+      CLOTHINGSHOP_DB_PASSWORD: ${DB_PASSWORD}
+      CLOTHINGSHOP_APP_SECRET: ${CLOTHINGSHOP_APP_SECRET:-}
+      CLOTHINGSHOP_APP_BASEURL: ${CLOTHINGSHOP_APP_BASEURL:-http://localhost:8080}
+      CLOTHINGSHOP_ADMIN_USERNAME: ${CLOTHINGSHOP_ADMIN_USERNAME:-}
+      CLOTHINGSHOP_ADMIN_EMAIL: ${CLOTHINGSHOP_ADMIN_EMAIL:-}
+      CLOTHINGSHOP_ADMIN_PASSWORD: ${CLOTHINGSHOP_ADMIN_PASSWORD:-}
+      CLOTHINGSHOP_ADMIN_FULLNAME: ${CLOTHINGSHOP_ADMIN_FULLNAME:-}
+      CLOTHINGSHOP_ADMIN_PHONE: ${CLOTHINGSHOP_ADMIN_PHONE:-}
+      CLOTHINGSHOP_MAIL_SMTP_HOST: ${CLOTHINGSHOP_MAIL_SMTP_HOST:-}
+      CLOTHINGSHOP_MAIL_SMTP_PORT: ${CLOTHINGSHOP_MAIL_SMTP_PORT:-587}
+      CLOTHINGSHOP_MAIL_SMTP_USERNAME: ${CLOTHINGSHOP_MAIL_SMTP_USERNAME:-}
+      CLOTHINGSHOP_MAIL_SMTP_PASSWORD: ${CLOTHINGSHOP_MAIL_SMTP_PASSWORD:-}
+      CLOTHINGSHOP_MAIL_SMTP_STARTTLS: ${CLOTHINGSHOP_MAIL_SMTP_STARTTLS:-true}
+      CLOTHINGSHOP_MAIL_FROM: ${CLOTHINGSHOP_MAIL_FROM:-}
+      CLOTHINGSHOP_VNPAY_TMNCODE: ${CLOTHINGSHOP_VNPAY_TMNCODE:-}
+      CLOTHINGSHOP_VNPAY_HASHSECRET: ${CLOTHINGSHOP_VNPAY_HASHSECRET:-}
+      CLOTHINGSHOP_VNPAY_PROCESSRETURNURL: ${CLOTHINGSHOP_VNPAY_PROCESSRETURNURL:-false}
+      CLOTHINGSHOP_SHOP_SHIPPINGFEE: ${CLOTHINGSHOP_SHOP_SHIPPINGFEE:-20000}
+    volumes:
+      - app-data:/data
+
+volumes:
+  db-data:
+  app-data:
