@@ -1,0 +1,13 @@
+# Chỉ gửi những gì cần để build image; không bao giờ gửi file cấu hình có mật khẩu
+target/
+.git/
+.idea/
+.vscode/
+*.iml
+.env
+.env.*
+config/*.properties
+*.p12
+*.jks
+*.pem
+docs/

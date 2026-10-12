@@ -31,9 +31,11 @@ logs/
 # Local environment and secret configuration (never commit credentials)
 .env
 .env.*
+!.env.example
 *.local.properties
 setenv.bat
 setenv.sh
+!docker/setenv.sh
 config/*.properties
 !config/*.properties.example
 *.p12
