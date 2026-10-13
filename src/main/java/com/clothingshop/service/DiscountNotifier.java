@@ -1,5 +1,7 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.DiscountDao;
+import com.clothingshop.dao.WishlistDao;
 import com.clothingshop.util.JpaUtil;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -32,16 +34,11 @@ public class DiscountNotifier {
     public int notifyWishlists() {
         LocalDateTime today = LocalDate.now(clock).atStartOfDay();
         int sent = JpaUtil.read(em -> {
-            List<Object[]> starting = em.createQuery("select p.name, d.discountValue, d.startDate, d.endDate, min(p.id)"
-                            + " from Discount d join d.product p where d.startDate >= :today and d.startDate < :tomorrow"
-                            + " and p.active = true group by p.name, d.discountValue, d.startDate, d.endDate", Object[].class)
-                    .setParameter("today", today).setParameter("tomorrow", today.plusDays(1)).getResultList();
+            List<Object[]> starting = new DiscountDao(em).findStartingBetween(today, today.plusDays(1));
             int count = 0;
             for (Object[] c : starting) {
                 String name = (String) c[0];
-                List<Object[]> customers = em.createQuery("select distinct cu.email, cu.fullName from Wishlist w join w.customer cu"
-                        + " join w.products p where lower(p.name) = lower(:name)", Object[].class)
-                        .setParameter("name", name).getResultList();
+                List<Object[]> customers = new WishlistDao(em).findCustomersWatching(name);
                 for (Object[] cu : customers) {
                     Emails.Message m = Emails.wishlistDiscount((String) cu[1], name, (BigDecimal) c[1], (LocalDateTime) c[2],
                             (LocalDateTime) c[3], baseUrl + "/product?id=" + c[4]);

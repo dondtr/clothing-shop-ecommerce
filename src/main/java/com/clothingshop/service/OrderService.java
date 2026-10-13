@@ -1,12 +1,12 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.DeliveryIssueDao;
+import com.clothingshop.dao.EmployeeDao;
 import com.clothingshop.dao.OrderDao;
 import com.clothingshop.dao.ProductDao;
 import com.clothingshop.dao.VoucherDao;
 import com.clothingshop.entity.Customer;
-import com.clothingshop.entity.DeliveryIssue;
 import com.clothingshop.entity.DeliveryIssueStatus;
-import com.clothingshop.entity.Employee;
 import com.clothingshop.entity.Order;
 import com.clothingshop.entity.OrderDetail;
 import com.clothingshop.entity.OrderStatus;
@@ -125,7 +125,7 @@ public class OrderService {
             if (p.getMethod() == PaymentMethod.COD && p.getStatus() == PaymentStatus.UNPAID) {
                 p.setStatus(PaymentStatus.PAID);
                 p.setPaidAt(now);
-                em.flush();
+                new OrderDao(em).flush();
                 CustomerService.evaluateLevel(em, o.getCustomer().getId());
             }
             closeOpenIssue(em, orderId, null, now);
@@ -190,7 +190,7 @@ public class OrderService {
                 } else if (p.getStatus() == PaymentStatus.PAID) {
                     p.setStatus(PaymentStatus.REFUND);
                     refunded = o.getTotalAmount();
-                    em.flush();
+                    new OrderDao(em).flush();
                     CustomerService.evaluateLevel(em, o.getCustomer().getId());
                 }
                 closeOpenIssue(em, orderId, employeeId, now);
@@ -218,9 +218,7 @@ public class OrderService {
      */
     public int autoComplete() {
         LocalDateTime now = LocalDateTime.now(clock);
-        List<Object[]> shipping = JpaUtil.read(em -> em.createQuery("select o.id, o.shippedAt, i.status, i.resolvedAt"
-                        + " from Order o left join DeliveryIssue i on i.order = o where o.status = :s", Object[].class)
-                .setParameter("s", OrderStatus.SHIPPING).getResultList());
+        List<Object[]> shipping = JpaUtil.read(em -> new OrderDao(em).findShippingWithIssue());
         int completed = 0;
         for (Object[] r : shipping) {
             if (r[2] == DeliveryIssueStatus.OPEN) {
@@ -242,11 +240,7 @@ public class OrderService {
      */
     public int autoCancelCod() {
         LocalDateTime cutoff = LocalDateTime.now(clock).minus(COD_SHIP_DEADLINE);
-        List<Integer> late = JpaUtil.read(em -> em.createQuery("select o.id from Payment p join p.order o where p.method = :cod"
-                        + " and p.status = :unpaid and o.status in :statuses and o.orderDate < :cutoff", Integer.class)
-                .setParameter("cod", PaymentMethod.COD).setParameter("unpaid", PaymentStatus.UNPAID)
-                .setParameter("statuses", List.of(OrderStatus.PENDING, OrderStatus.CONFIRMED))
-                .setParameter("cutoff", cutoff).getResultList());
+        List<Integer> late = JpaUtil.read(em -> new OrderDao(em).findCodNotShippedBefore(cutoff));
         int cancelled = 0;
         for (int id : late) {
             try {
@@ -273,12 +267,10 @@ public class OrderService {
 
     /** Closes an open delivery issue of the order with no resolution (Q62); resolvedBy is the employee who cancelled, if any. */
     private static void closeOpenIssue(EntityManager em, int orderId, Integer employeeId, LocalDateTime now) {
-        em.createQuery("select i from DeliveryIssue i where i.order.id = :o and i.status = :open", DeliveryIssue.class)
-                .setParameter("o", orderId).setParameter("open", DeliveryIssueStatus.OPEN)
-                .getResultStream().findFirst().ifPresent(i -> {
+        new DeliveryIssueDao(em).findOpenByOrder(orderId).ifPresent(i -> {
                     i.setStatus(DeliveryIssueStatus.RESOLVED);
                     i.setResolution(null);
-                    i.setResolvedBy(employeeId == null ? null : em.getReference(Employee.class, employeeId));
+                    i.setResolvedBy(employeeId == null ? null : new EmployeeDao(em).reference(employeeId));
                     i.setResolvedAt(now);
                 });
     }

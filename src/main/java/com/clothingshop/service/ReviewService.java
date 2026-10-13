@@ -1,13 +1,14 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.CustomerDao;
+import com.clothingshop.dao.ProductDao;
+import com.clothingshop.dao.ReviewDao;
 import com.clothingshop.entity.Customer;
-import com.clothingshop.entity.OrderStatus;
 import com.clothingshop.entity.Product;
 import com.clothingshop.entity.Review;
 import com.clothingshop.exception.BusinessException;
 import com.clothingshop.exception.ValidationException;
 import com.clothingshop.util.JpaUtil;
-import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceException;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -61,26 +62,23 @@ public class ReviewService {
         try {
             int id = JpaUtil.inTransaction(em -> {
                 // One review per customer and product: reviews of one customer are created one at a time
-                Customer customer = em.find(Customer.class, customerId, LockModeType.PESSIMISTIC_WRITE);
-                Product product = em.find(Product.class, productId);
+                Customer customer = new CustomerDao(em).lock(customerId).orElse(null);
+                ProductDao products = new ProductDao(em);
+                Product product = products.findById(productId).orElse(null);
                 if (customer == null || product == null) {
                     throw new BusinessException("Sản phẩm không tồn tại");
                 }
-                boolean bought = em.createQuery("select count(d) from OrderDetail d where d.order.customer.id = :c"
-                                + " and d.order.status = :completed and d.product.id = :p", Long.class)
-                        .setParameter("c", customerId).setParameter("completed", OrderStatus.COMPLETED)
-                        .setParameter("p", productId).getSingleResult() > 0;
+                boolean bought = products.isBoughtBy(customerId, productId);
                 if (!bought) {
                     throw new BusinessException("Chỉ đánh giá được sản phẩm đã mua trong đơn giao thành công (BR-14)");
                 }
-                boolean reviewed = em.createQuery("select count(r) from Review r where r.customer.id = :c"
-                                + " and lower(r.product.name) = lower(:name)", Long.class)
-                        .setParameter("c", customerId).setParameter("name", product.getName()).getSingleResult() > 0;
+                ReviewDao reviews = new ReviewDao(em);
+                boolean reviewed = reviews.existsForProductName(customerId, product.getName());
                 if (reviewed) {
                     throw new BusinessException("Bạn đã đánh giá sản phẩm này");
                 }
                 Review review = new Review(customer, product, stars, text, now);
-                em.persist(review);
+                reviews.persist(review);
                 return review.getId();
             });
             LOG.info("Review created: id={}, customerId={}, productId={}", id, customerId, productId);
@@ -93,11 +91,12 @@ public class ReviewService {
     /** FR-30 (Review.delete()): only the customer's own review. */
     public void delete(int customerId, int reviewId) {
         JpaUtil.inTransaction(em -> {
-            Review review = em.find(Review.class, reviewId);
+            ReviewDao reviews = new ReviewDao(em);
+            Review review = reviews.findById(reviewId).orElse(null);
             if (review == null || review.getCustomer().getId() != customerId) {
                 throw new BusinessException("Đánh giá không tồn tại");
             }
-            em.remove(review);
+            reviews.remove(review);
             return null;
         });
         LOG.info("Review deleted: id={}, customerId={}", reviewId, customerId);

@@ -1,5 +1,6 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.VoucherDao;
 import com.clothingshop.dto.VoucherRow;
 import com.clothingshop.dto.VoucherView;
 import com.clothingshop.entity.DiscountType;
@@ -10,7 +11,6 @@ import com.clothingshop.exception.BusinessException;
 import com.clothingshop.exception.ValidationException;
 import com.clothingshop.util.JpaUtil;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -67,8 +67,7 @@ public class VoucherAdminService {
     public List<VoucherRow> list(String codeQuery, EligibleCustomer eligible, String state) {
         LocalDateTime now = LocalDateTime.now(clock);
         String q = codeQuery == null ? "" : codeQuery.trim().toUpperCase(Locale.ROOT);
-        return JpaUtil.read(em -> em.createQuery("select v from Voucher v order by v.policy.startDate desc, v.code", Voucher.class)
-                .getResultList().stream()
+        return JpaUtil.read(em -> new VoucherDao(em).findAll().stream()
                 .filter(v -> v.getCode().contains(q))
                 .filter(v -> eligible == null || v.getPolicy().getEligibleCustomer() == eligible)
                 .map(v -> row(v, now))
@@ -80,7 +79,7 @@ public class VoucherAdminService {
     public VoucherRow get(String code) {
         LocalDateTime now = LocalDateTime.now(clock);
         return JpaUtil.read(em -> {
-            Voucher v = em.find(Voucher.class, VoucherService.normalizeCode(code));
+            Voucher v = new VoucherDao(em).findByCode(VoucherService.normalizeCode(code)).orElse(null);
             if (v == null) {
                 throw new BusinessException("Voucher không tồn tại");
             }
@@ -103,7 +102,7 @@ public class VoucherAdminService {
                 errors.put("code", "Mã gồm chữ cái không dấu, chữ số, dấu gạch ngang, tối đa 50 ký tự");
             } else if (HOLIDAY_CODE.matcher(code).matches() || MONTHLY_CODE.matcher(code).matches()) {
                 errors.put("code", "Mã trùng dạng mã voucher ngày lễ hoặc hằng tháng do hệ thống tự phát hành");
-            } else if (JpaUtil.read(em -> em.find(Voucher.class, code)) != null) {
+            } else if (JpaUtil.read(em -> new VoucherDao(em).findByCode(code).isPresent())) {
                 errors.put("code", "Mã voucher đã tồn tại");
             }
         }
@@ -144,7 +143,7 @@ public class VoucherAdminService {
     public void create(Form form) {
         Values v = validate(form, null);
         JpaUtil.inTransaction(em -> {
-            if (em.find(Voucher.class, v.code()) != null) {
+            if (new VoucherDao(em).findByCode(v.code()).isPresent()) {
                 throw new ValidationException(Map.of("code", "Mã voucher đã tồn tại"));
             }
             persist(em, v.code(), v.discountType(), v.discountValue(), v.quantity(), v.eligibleCustomer(), v.minOrderValue(),
@@ -163,7 +162,7 @@ public class VoucherAdminService {
         Values v = validate(form, normalized);
         LocalDateTime now = LocalDateTime.now(clock);
         JpaUtil.inTransaction(em -> {
-            Voucher voucher = em.find(Voucher.class, normalized, LockModeType.PESSIMISTIC_WRITE);
+            Voucher voucher = new VoucherDao(em).lock(normalized).orElse(null);
             if (voucher == null) {
                 throw new BusinessException("Voucher không tồn tại");
             }
@@ -201,7 +200,7 @@ public class VoucherAdminService {
         p.setStartDate(start);
         p.setEndDate(end);
         v.setPolicy(p);
-        em.persist(v);
+        new VoucherDao(em).persist(v);
         return v;
     }
 

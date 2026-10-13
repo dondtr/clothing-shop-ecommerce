@@ -50,7 +50,9 @@ clothing-shop-ecommerce/
     │   │                   quản lý: DashboardService, ProductAdminService, DiscountAdminService, DiscountNotifier, VoucherAdminService,
     │   │                            AutoVoucherService + VoucherSettings/VoucherSettingsStore + Holiday, CustomerService, EmployeeService, StatisticsService
     │   │                   hạ tầng: Scheduler (J1 – J7), EmailService (SmtpEmailService / LogEmailService), AsyncEmailService, Emails (nội dung E1 – E9)
-    │   ├── dao/          UserDao, ProductDao, DiscountDao, ReviewDao, WishlistDao, OrderDao, VoucherDao: truy cập dữ liệu bằng JPA EntityManager
+    │   ├── dao/          Mọi truy vấn và thao tác CSDL (JPA EntityManager), mỗi entity một DAO: UserDao, CustomerDao, EmployeeDao, AddressDao,
+    │   │                 ProductDao, DiscountDao, ReviewDao, WishlistDao, OrderDao, PaymentDao, DeliveryIssueDao, ReturnRequestDao,
+    │   │                 VoucherDao; StatisticsDao cho các truy vấn tổng hợp của trang Thống kê
     │   ├── dto/          Dữ liệu cho trang và form (AuthUser, FlashMessage, *Form, *View, *Row, ProductPage, CartView, CheckoutView, CustomerDetail, StatisticsReport...)
     │   ├── filter/       CsrfFilter (mọi form POST), CustomerAreaFilter, SignedInFilter, StaffAreaFilter (phân quyền theo đường dẫn)
     │   ├── exception/    ValidationException (lỗi theo từng ô), BusinessException, ConflictException (dữ liệu đã bị người khác sửa), PriceChangedException
@@ -237,6 +239,7 @@ Ghi chú kỹ thuật:
 - Mật khẩu băm bằng PBKDF2-HMAC-SHA256 có muối, 600.000 vòng (có sẵn trong JDK). Link trong email ký bằng HMAC-SHA256 với `app.secret`.
 - Mọi form POST có token CSRF; đăng nhập đổi session id; cookie phiên `HttpOnly`, không đưa session id lên URL.
 - Thông báo sai thông tin đăng nhập luôn giống nhau, không cho biết tài khoản có tồn tại hay không.
+- Phân lớp: controller (servlet) → service → DAO. Service chỉ chứa nghiệp vụ và mở giao dịch (`JpaUtil.inTransaction`, `JpaUtil.read`), rồi truyền `EntityManager` của giao dịch cho DAO (`new XxxDao(em)`); mọi câu JPQL/SQL và lệnh `find`, `persist`, `remove`, `flush`, khóa bản ghi đều nằm trong DAO. Controller không truy cập CSDL.
 - Mặt hàng là các dòng `Product` cùng tên (so sánh không phân biệt hoa thường). Giá sau giảm = `basePrice` trừ % của đợt giảm giá đang hiệu lực (startDate ≤ hiện tại ≤ endDate), làm tròn đến hàng nghìn, từ 500 đồng làm tròn lên (`Money`, `Product.getCurrentPrice`, `DiscountDao.findAvailable`; giỏ hàng và đặt hàng dùng lại).
 - Cửa hàng nạp các dòng đang bán rồi gom và lọc theo giá trong bộ nhớ, vì lọc theo giá sau giảm phụ thuộc đợt giảm giá đang hiệu lực. Với vài nghìn dòng thì vẫn nhẹ; nếu dữ liệu lớn hơn nhiều thì chuyển việc gom nhóm và phân trang xuống SQL.
 - Giỏ hàng nằm trong bộ nhớ server theo userId (Q47): mọi trình duyệt đang đăng nhập cùng tài khoản thấy chung một giỏ; mất khi khởi động lại server; giỏ không dùng 30 ngày bị dọn. Mỗi thay đổi trên giỏ của một khách hàng chạy tuần tự (`ConcurrentHashMap.compute`) và áp dụng trên bản sao, lỗi thì giỏ giữ nguyên. `CartStore` là interface để sau này thay bằng Redis (Q59) mà không sửa `CartService`.

@@ -1,7 +1,8 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.CustomerDao;
+import com.clothingshop.dao.VoucherDao;
 import com.clothingshop.dto.VoucherView;
-import com.clothingshop.entity.Customer;
 import com.clothingshop.entity.CustomerLevel;
 import com.clothingshop.entity.EligibleCustomer;
 import com.clothingshop.entity.Voucher;
@@ -40,7 +41,7 @@ public class VoucherService {
      * {@code productAmount}; otherwise a {@link BusinessException} that says which rule failed.
      */
     static Voucher checkUsable(EntityManager em, String code, CustomerLevel level, BigDecimal productAmount, LocalDateTime now) {
-        Voucher voucher = em.find(Voucher.class, normalizeCode(code));
+        Voucher voucher = new VoucherDao(em).findByCode(normalizeCode(code)).orElse(null);
         if (voucher == null) {
             throw new BusinessException(MSG_NOT_FOUND);
         }
@@ -68,13 +69,9 @@ public class VoucherService {
     public List<VoucherView> usableBy(int customerId) {
         LocalDateTime now = LocalDateTime.now(clock);
         return JpaUtil.read(em -> {
-            CustomerLevel level = em.find(Customer.class, customerId).getCustomerLevel();
-            return em.createQuery("select v from Voucher v where v.quantity > 0 and v.policy.startDate <= :now"
-                            + " and v.policy.endDate >= :now and v.policy.eligibleCustomer in :eligible"
-                            + " order by v.policy.endDate, v.code", Voucher.class)
-                    .setParameter("now", now)
-                    .setParameter("eligible", List.of(EligibleCustomer.ALL, EligibleCustomer.valueOf(level.name())))
-                    .getResultList().stream().map(VoucherService::view).toList();
+            CustomerLevel level = new CustomerDao(em).findById(customerId).orElseThrow().getCustomerLevel();
+            return new VoucherDao(em).findUsable(List.of(EligibleCustomer.ALL, EligibleCustomer.valueOf(level.name())), now)
+                    .stream().map(VoucherService::view).toList();
         });
     }
 

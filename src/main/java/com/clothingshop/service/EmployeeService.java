@@ -1,5 +1,6 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.EmployeeDao;
 import com.clothingshop.dto.EmployeeForm;
 import com.clothingshop.dto.EmployeeRow;
 import com.clothingshop.entity.Employee;
@@ -35,8 +36,7 @@ public class EmployeeService {
     }
 
     public List<EmployeeRow> list() {
-        return JpaUtil.read(em -> em.createQuery("select e from Employee e order by e.role desc, e.hireDate desc, e.id desc",
-                        Employee.class).getResultList().stream()
+        return JpaUtil.read(em -> new EmployeeDao(em).findAll().stream()
                 .map(e -> new EmployeeRow(e.getId(), e.getUserName(), e.getFullName(), e.getEmail(), e.getPhone(), e.getRole(),
                         e.isActive(), e.getHireDate()))
                 .toList());
@@ -63,7 +63,7 @@ public class EmployeeService {
             int id = JpaUtil.inTransaction(em -> {
                 Employee e = new Employee(userName, PasswordHasher.hash(password), fullName, gender, dob, email, phone,
                         LocalDate.now(clock), EmployeeRole.STAFF);
-                em.persist(e);
+                new EmployeeDao(em).persist(e);
                 return e.getId();
             });
             LOG.info("Staff account created: id={}, userName={}", id, userName);
@@ -76,7 +76,7 @@ public class EmployeeService {
     /** FR-41: locks (active = FALSE) or unlocks a STAFF account; the manager account cannot be locked. */
     public void setActive(int employeeId, boolean active) {
         JpaUtil.inTransaction(em -> {
-            Employee e = em.find(Employee.class, employeeId);
+            Employee e = new EmployeeDao(em).findById(employeeId).orElse(null);
             if (e == null) {
                 throw new BusinessException("Nhân viên không tồn tại");
             }
@@ -91,7 +91,7 @@ public class EmployeeService {
 
     /** Whether the employee may still use the staff area (a locked account loses access at once, BR-18). */
     public boolean isActive(int employeeId) {
-        return JpaUtil.read(em -> Optional.ofNullable(em.find(Employee.class, employeeId)).map(Employee::isActive).orElse(false));
+        return JpaUtil.read(em -> new EmployeeDao(em).findById(employeeId).map(Employee::isActive).orElse(false));
     }
 
     /**
@@ -100,8 +100,7 @@ public class EmployeeService {
      * {@code admin.gender} (default OTHER) and {@code admin.dob} (default 1990-01-01). Passwords are never in the code.
      */
     public void ensureAdmin() {
-        boolean exists = JpaUtil.read(em -> em.createQuery("select count(e) from Employee e where e.role = :r", Long.class)
-                .setParameter("r", EmployeeRole.ADMIN).getSingleResult() > 0);
+        boolean exists = JpaUtil.read(em -> new EmployeeDao(em).existsWithRole(EmployeeRole.ADMIN));
         if (exists) {
             return;
         }
@@ -126,7 +125,7 @@ public class EmployeeService {
             return;
         }
         JpaUtil.inTransaction(em -> {
-            em.persist(new Employee(name, PasswordHasher.hash(password), fullName, gender, dob, email, phone,
+            new EmployeeDao(em).persist(new Employee(name, PasswordHasher.hash(password), fullName, gender, dob, email, phone,
                     LocalDate.now(clock), EmployeeRole.ADMIN));
             return null;
         });

@@ -1,19 +1,19 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.DeliveryIssueDao;
+import com.clothingshop.dao.EmployeeDao;
 import com.clothingshop.dao.OrderDao;
 import com.clothingshop.dao.ProductDao;
 import com.clothingshop.dto.IssueRow;
 import com.clothingshop.entity.DeliveryIssue;
 import com.clothingshop.entity.DeliveryIssueStatus;
 import com.clothingshop.entity.DeliveryResolution;
-import com.clothingshop.entity.Employee;
 import com.clothingshop.entity.Order;
 import com.clothingshop.entity.OrderDetail;
 import com.clothingshop.entity.OrderStatus;
 import com.clothingshop.exception.BusinessException;
 import com.clothingshop.exception.ValidationException;
 import com.clothingshop.util.JpaUtil;
-import jakarta.persistence.LockModeType;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -61,10 +61,7 @@ public class DeliveryService {
      */
     public int sendReminders() {
         LocalDateTime today = LocalDate.now(clock).atStartOfDay();
-        List<Object[]> due = JpaUtil.read(em -> em.createQuery("select o.id, c.email, c.fullName from Order o join o.customer c"
-                        + " where o.status = :s and o.shippedAt >= :from and o.shippedAt < :to", Object[].class)
-                .setParameter("s", OrderStatus.SHIPPING).setParameter("from", today.minusDays(4)).setParameter("to", today.minusDays(3))
-                .getResultList());
+        List<Object[]> due = JpaUtil.read(em -> new OrderDao(em).findShippedBetween(today.minusDays(4), today.minusDays(3)));
         for (Object[] r : due) {
             int orderId = (Integer) r[0];
             Emails.Message m = Emails.reminder((String) r[2], orderId, links.received(orderId), links.notReceived(orderId));
@@ -85,12 +82,11 @@ public class DeliveryService {
             if (o.getStatus() != OrderStatus.SHIPPING) {
                 return ReportResult.NOT_SHIPPING;
             }
-            boolean exists = em.createQuery("select count(i) from DeliveryIssue i where i.order.id = :o", Long.class)
-                    .setParameter("o", orderId).getSingleResult() > 0;
-            if (exists) {
+            DeliveryIssueDao issues = new DeliveryIssueDao(em);
+            if (issues.existsForOrder(orderId)) {
                 return ReportResult.ALREADY_REPORTED;
             }
-            em.persist(new DeliveryIssue(o, now));
+            issues.persist(new DeliveryIssue(o, now));
             return ReportResult.CREATED;
         });
         if (result == ReportResult.CREATED) {
@@ -101,10 +97,7 @@ public class DeliveryService {
 
     /** FR-42 step 3, FR-21 step 1: open issues of orders still being delivered, oldest first. */
     public List<IssueRow> openIssues() {
-        return JpaUtil.read(em -> em.createQuery("select i from DeliveryIssue i join fetch i.order o join fetch o.customer"
-                        + " where i.status = :open and o.status = :s order by i.reportedAt", DeliveryIssue.class)
-                .setParameter("open", DeliveryIssueStatus.OPEN).setParameter("s", OrderStatus.SHIPPING)
-                .getResultList().stream().map(i -> {
+        return JpaUtil.read(em -> new DeliveryIssueDao(em).findOpenOfShippingOrders().stream().map(i -> {
                     Order o = i.getOrder();
                     List<IssueRow.Line> lines = o.getDetails().stream().map(d -> new IssueRow.Line(d.getProduct().getName(),
                             d.getProduct().getColor(), d.getProduct().getSize(), d.getQuantity(), d.getProduct().getStockQuantity()))
@@ -131,7 +124,7 @@ public class DeliveryService {
         }
         LocalDateTime now = LocalDateTime.now(clock);
         Object[] done = JpaUtil.inTransaction(em -> {
-            DeliveryIssue issue = em.find(DeliveryIssue.class, issueId, LockModeType.PESSIMISTIC_WRITE);
+            DeliveryIssue issue = new DeliveryIssueDao(em).lock(issueId).orElse(null);
             if (issue == null || issue.getStatus() != DeliveryIssueStatus.OPEN || issue.getOrder().getStatus() != OrderStatus.SHIPPING) {
                 throw new BusinessException("Sự cố đã được xử lý hoặc đơn hàng đã thay đổi, vui lòng tải lại");
             }
@@ -148,7 +141,7 @@ public class DeliveryService {
             }
             issue.setStatus(DeliveryIssueStatus.RESOLVED);
             issue.setResolution(reship ? DeliveryResolution.RESHIP : DeliveryResolution.RESOLVED);
-            issue.setResolvedBy(em.getReference(Employee.class, employeeId));
+            issue.setResolvedBy(new EmployeeDao(em).reference(employeeId));
             issue.setResolvedAt(now);
             return new Object[] {o.getId(), o.getCustomer().getEmail(), o.getCustomer().getFullName()};
         });

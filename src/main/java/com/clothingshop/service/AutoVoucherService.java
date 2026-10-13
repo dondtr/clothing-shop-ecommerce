@@ -1,5 +1,6 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.VoucherDao;
 import com.clothingshop.entity.CustomerLevel;
 import com.clothingshop.entity.DiscountType;
 import com.clothingshop.entity.EligibleCustomer;
@@ -142,7 +143,7 @@ public class AutoVoucherService {
             }
             String code = e.getKey().name() + "-" + String.format("%02d%04d", month.getMonthValue(), month.getYear());
             boolean created = JpaUtil.inTransaction(em -> {
-                if (em.find(Voucher.class, code) != null) {
+                if (new VoucherDao(em).findByCode(code).isPresent()) {
                     return false;
                 }
                 VoucherAdminService.persist(em, code, m.discountType(), m.discountValue(), m.quantity() == null ? 0 : m.quantity(),
@@ -207,8 +208,7 @@ public class AutoVoucherService {
     /** Vouchers of a campaign: codes prefix + 2 digits (manual codes cannot take that form, Q27). */
     private static List<Voucher> campaignVouchers(EntityManager em, Holiday h) {
         Pattern own = Pattern.compile("^" + h.name() + "[0-9]{2}$");
-        return em.createQuery("select v from Voucher v where v.code like :prefix", Voucher.class)
-                .setParameter("prefix", h.name() + "%").getResultList().stream()
+        return new VoucherDao(em).findByCodePrefix(h.name()).stream()
                 .filter(v -> own.matcher(v.getCode()).matches()).toList();
     }
 

@@ -1,6 +1,7 @@
 package com.clothingshop.dao;
 
 import com.clothingshop.entity.Discount;
+import com.clothingshop.entity.Product;
 import jakarta.persistence.EntityManager;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -42,5 +43,40 @@ public class DiscountDao {
             }
         }
         return result;
+    }
+
+    /** Every discount of the given rows (one product), the latest start first. */
+    public List<Discount> findByRows(List<Product> rows) {
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        return em.createQuery("select d from Discount d where d.product in :rows order by d.startDate desc, d.id", Discount.class)
+                .setParameter("rows", rows).getResultList();
+    }
+
+    /** The discounts of one campaign: the rows' discounts that start at {@code start} (FR-34). */
+    public List<Discount> findCampaign(List<Product> rows, LocalDateTime start) {
+        return em.createQuery("select d from Discount d where d.product in :rows and d.startDate = :start", Discount.class)
+                .setParameter("rows", rows).setParameter("start", start).getResultList();
+    }
+
+    /**
+     * Campaigns of products on sale that start in [from, to) (J4, FR-11): rows of product name, discount value, start,
+     * end and the smallest row id of the product.
+     */
+    public List<Object[]> findStartingBetween(LocalDateTime from, LocalDateTime to) {
+        return em.createQuery("select p.name, d.discountValue, d.startDate, d.endDate, min(p.id)"
+                        + " from Discount d join d.product p where d.startDate >= :today and d.startDate < :tomorrow"
+                        + " and p.active = true group by p.name, d.discountValue, d.startDate, d.endDate", Object[].class)
+                .setParameter("today", from).setParameter("tomorrow", to).getResultList();
+    }
+
+    /** Deletes every discount of a row (the row itself is being deleted, FR-31 step 5). */
+    public void deleteByProduct(int productId) {
+        em.createQuery("delete from Discount d where d.product.id = :id").setParameter("id", productId).executeUpdate();
+    }
+
+    public void persist(Discount discount) {
+        em.persist(discount);
     }
 }

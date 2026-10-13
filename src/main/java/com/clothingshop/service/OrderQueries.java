@@ -1,6 +1,9 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.DeliveryIssueDao;
 import com.clothingshop.dao.OrderDao;
+import com.clothingshop.dao.ReturnRequestDao;
+import com.clothingshop.dao.ReviewDao;
 import com.clothingshop.dto.OrderDetailView;
 import com.clothingshop.dto.OrderRow;
 import com.clothingshop.entity.Customer;
@@ -78,16 +81,13 @@ public class OrderQueries {
         LocalDateTime now = LocalDateTime.now(clock);
         Payment p = new OrderDao(em).paymentOf(o.getId());
         Customer c = o.getCustomer();
-        DeliveryIssue issue = em.createQuery("select i from DeliveryIssue i left join fetch i.resolvedBy where i.order.id = :o",
-                DeliveryIssue.class).setParameter("o", o.getId()).getResultStream().findFirst().orElse(null);
-        ReturnRequest ret = em.createQuery("select r from ReturnRequest r left join fetch r.handledBy where r.order.id = :o",
-                ReturnRequest.class).setParameter("o", o.getId()).getResultStream().findFirst().orElse(null);
+        DeliveryIssue issue = new DeliveryIssueDao(em).findByOrder(o.getId()).orElse(null);
+        ReturnRequest ret = new ReturnRequestDao(em).findByOrder(o.getId()).orElse(null);
 
         // Reviews of this customer by product (rows sharing a name): one review per product (BR-14, Q44)
         Map<String, Integer> reviews = new HashMap<>();
         if (forCustomer) {
-            for (Object[] r : em.createQuery("select r.id, r.product.name from Review r where r.customer.id = :c", Object[].class)
-                    .setParameter("c", c.getId()).getResultList()) {
+            for (Object[] r : new ReviewDao(em).findIdAndProductNameByCustomer(c.getId())) {
                 reviews.put(((String) r[1]).toLowerCase(Locale.ROOT), (Integer) r[0]);
             }
         }

@@ -1,6 +1,8 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.DiscountDao;
 import com.clothingshop.dao.ProductDao;
+import com.clothingshop.dao.WishlistDao;
 import com.clothingshop.dto.ProductAdminView;
 import com.clothingshop.dto.ProductForm;
 import com.clothingshop.entity.Discount;
@@ -12,7 +14,6 @@ import com.clothingshop.exception.ConflictException;
 import com.clothingshop.exception.ValidationException;
 import com.clothingshop.util.JpaUtil;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -53,7 +54,7 @@ public class ProductAdminService {
     public List<ProductAdminView.Summary> list(String query) {
         String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
         return JpaUtil.read(em -> {
-            List<Product> rows = em.createQuery("select p from Product p order by p.createdAt desc, p.id", Product.class).getResultList();
+            List<Product> rows = new ProductDao(em).findAllNewestFirst();
             Map<String, List<Product>> groups = new LinkedHashMap<>();
             for (Product p : rows) {
                 if (p.getName().toLowerCase(Locale.ROOT).contains(q)) {
@@ -117,7 +118,7 @@ public class ProductAdminService {
             for (VariantValues v : values) {
                 Product p = new Product(c.name(), c.category(), c.description(), v.imgUrl(), c.basePrice(), v.color(), v.size(),
                         v.stock(), c.active(), now);
-                em.persist(p);
+                new ProductDao(em).persist(p);
                 first = first == null ? p.getId() : first;
             }
             return first;
@@ -133,7 +134,7 @@ public class ProductAdminService {
     public void updateCommon(int rowId, ProductForm form, String stamp) {
         Map<String, String> errors = new LinkedHashMap<>();
         Common c = common(form, errors);
-        String current = JpaUtil.read(em -> em.find(Product.class, rowId) == null ? null : em.find(Product.class, rowId).getName());
+        String current = JpaUtil.read(em -> new ProductDao(em).findById(rowId).map(Product::getName).orElse(null));
         reportTakenName(c.name(), current, errors);
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
@@ -179,9 +180,10 @@ public class ProductAdminService {
             Product model = rows.get(0);
             Product p = new Product(model.getName(), model.getCategory(), model.getDescription(), v.imgUrl(), model.getBasePrice(),
                     v.color(), v.size(), v.stock(), model.isActive(), now);
-            em.persist(p);
+            new ProductDao(em).persist(p);
+            DiscountDao discounts = new DiscountDao(em);
             for (Discount d : DiscountAdminService.openCampaignTemplates(em, rows, now)) {
-                em.persist(new Discount(p, d.getDiscountValue(), d.getStartDate(), d.getEndDate()));
+                discounts.persist(new Discount(p, d.getDiscountValue(), d.getStartDate(), d.getEndDate()));
             }
             return p.getId();
         });
@@ -197,7 +199,7 @@ public class ProductAdminService {
             throw new ValidationException(errors);
         }
         JpaUtil.inTransaction(em -> {
-            Product row = em.find(Product.class, rowId, LockModeType.PESSIMISTIC_WRITE);
+            Product row = new ProductDao(em).lock(rowId).orElse(null);
             if (row == null) {
                 throw new BusinessException("Biến thể không tồn tại");
             }
@@ -231,7 +233,7 @@ public class ProductAdminService {
             throw new ValidationException(Map.of("quantity", "Tồn kho không được âm"));
         }
         JpaUtil.inTransaction(em -> {
-            Product row = em.find(Product.class, rowId, LockModeType.PESSIMISTIC_WRITE);
+            Product row = new ProductDao(em).lock(rowId).orElse(null);
             if (row == null) {
                 throw new BusinessException("Biến thể không tồn tại");
             }
@@ -256,7 +258,7 @@ public class ProductAdminService {
      */
     public void deleteVariant(int rowId) {
         JpaUtil.inTransaction(em -> {
-            Product row = em.find(Product.class, rowId, LockModeType.PESSIMISTIC_WRITE);
+            Product row = new ProductDao(em).lock(rowId).orElse(null);
             if (row == null) {
                 throw new BusinessException("Biến thể không tồn tại");
             }
@@ -290,21 +292,21 @@ public class ProductAdminService {
             throw new BusinessException("Biến thể đã nằm trong đơn hàng nên không xóa được (BR-15). "
                     + "Hãy chuyển mặt hàng sang không bán hoặc đặt tồn kho về 0.");
         }
-        for (Wishlist w : em.createQuery("select w from Wishlist w join w.products p where p.id = :id", Wishlist.class)
-                .setParameter("id", row.getId()).getResultList()) {
+        for (Wishlist w : new WishlistDao(em).findContaining(row.getId())) {
             w.getProducts().remove(row);
             if (replacement != null && w.getProducts().stream().noneMatch(p -> p.getName().equalsIgnoreCase(replacement.getName()))) {
                 w.getProducts().add(replacement);
             }
         }
-        em.createQuery("delete from Discount d where d.product.id = :id").setParameter("id", row.getId()).executeUpdate();
-        em.flush();
-        em.remove(row);
+        new DiscountDao(em).deleteByProduct(row.getId());
+        ProductDao products = new ProductDao(em);
+        products.flush();
+        products.remove(row);
     }
 
     /** Rows of the product of {@code rowId}, in creation order. */
     private static List<Product> rowsOf(EntityManager em, int rowId) {
-        Product row = em.find(Product.class, rowId);
+        Product row = new ProductDao(em).findById(rowId).orElse(null);
         if (row == null) {
             throw new BusinessException("Mặt hàng không tồn tại");
         }
@@ -313,7 +315,7 @@ public class ProductAdminService {
 
     /** Locks every row of the product and refuses the change if any row changed since the page was opened. */
     private static List<Product> lockRows(EntityManager em, int rowId, String stamp) {
-        Product row = em.find(Product.class, rowId);
+        Product row = new ProductDao(em).findById(rowId).orElse(null);
         if (row == null) {
             throw new BusinessException("Mặt hàng không tồn tại");
         }
@@ -331,12 +333,7 @@ public class ProductAdminService {
 
     /** Rows that are in an order or have a review: their history must stay readable (BR-15). */
     static Set<Integer> soldRows(EntityManager em, List<Product> rows) {
-        List<Integer> ids = rows.stream().map(Product::getId).toList();
-        Set<Integer> sold = new HashSet<>(em.createQuery("select distinct d.product.id from OrderDetail d where d.product.id in :ids",
-                Integer.class).setParameter("ids", ids).getResultList());
-        sold.addAll(em.createQuery("select distinct r.product.id from Review r where r.product.id in :ids", Integer.class)
-                .setParameter("ids", ids).getResultList());
-        return sold;
+        return new ProductDao(em).findOrderedOrReviewed(rows.stream().map(Product::getId).toList());
     }
 
     /** Reports a name used by another product together with the other form errors; checked again when saving. */

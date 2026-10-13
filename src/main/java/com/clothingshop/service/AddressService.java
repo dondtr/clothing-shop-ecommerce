@@ -1,15 +1,15 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.AddressDao;
+import com.clothingshop.dao.CustomerDao;
 import com.clothingshop.dto.AddressForm;
 import com.clothingshop.dto.AddressView;
 import com.clothingshop.entity.Address;
-import com.clothingshop.entity.Customer;
 import com.clothingshop.exception.BusinessException;
 import com.clothingshop.exception.ConflictException;
 import com.clothingshop.exception.ValidationException;
 import com.clothingshop.util.JpaUtil;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +67,7 @@ public class AddressService {
             if (address.isDefaultAddress()) {
                 throw new BusinessException(MSG_DEFAULT_NEEDS_REPLACEMENT);
             }
-            em.remove(address);
+            new AddressDao(em).remove(address);
             return null;
         });
     }
@@ -84,7 +84,7 @@ public class AddressService {
             for (Address a : addresses(em, customerId)) {
                 a.setDefaultAddress(a == replacement);
             }
-            em.remove(old);
+            new AddressDao(em).remove(old);
             return null;
         });
     }
@@ -98,8 +98,9 @@ public class AddressService {
             for (Address a : addresses(em, customerId)) {
                 a.setDefaultAddress(false);
             }
-            em.remove(old);
-            em.flush();
+            AddressDao addresses = new AddressDao(em);
+            addresses.remove(old);
+            addresses.flush();
             persistNew(em, customerId, clean, true);
             return null;
         });
@@ -129,10 +130,11 @@ public class AddressService {
      */
     static Address persistNew(EntityManager em, int customerId, AddressForm clean, boolean makeDefault) {
         lockCustomer(em, customerId);
-        boolean first = addresses(em, customerId).isEmpty();
+        AddressDao addresses = new AddressDao(em);
+        boolean first = addresses.findByCustomer(customerId).isEmpty();
         Address address = new Address(clean.province(), clean.ward(), clean.street(), makeDefault || first);
-        address.setCustomer(em.getReference(Customer.class, customerId));
-        em.persist(address);
+        address.setCustomer(new CustomerDao(em).reference(customerId));
+        addresses.persist(address);
         return address;
     }
 
@@ -141,20 +143,17 @@ public class AddressService {
      * with two default addresses or none.
      */
     private static void lockCustomer(EntityManager em, int customerId) {
-        if (em.find(Customer.class, customerId, LockModeType.PESSIMISTIC_WRITE) == null) {
+        if (new CustomerDao(em).lock(customerId).isEmpty()) {
             throw new BusinessException("Tài khoản khách hàng không tồn tại");
         }
     }
 
     private static List<Address> addresses(EntityManager em, int customerId) {
-        return em.createQuery("select a from Address a where a.customer.id = :c order by a.defaultAddress desc, a.id", Address.class)
-                .setParameter("c", customerId).getResultList();
+        return new AddressDao(em).findByCustomer(customerId);
     }
 
     private static Address find(EntityManager em, int customerId, int addressId) {
-        return em.createQuery("select a from Address a where a.id = :id and a.customer.id = :c", Address.class)
-                .setParameter("id", addressId).setParameter("c", customerId)
-                .getResultStream().findFirst().orElseThrow(() -> new BusinessException(MSG_NOT_FOUND));
+        return new AddressDao(em).findOwned(customerId, addressId).orElseThrow(() -> new BusinessException(MSG_NOT_FOUND));
     }
 
     private static String required(String raw, int max, String field, String label, Map<String, String> errors) {
