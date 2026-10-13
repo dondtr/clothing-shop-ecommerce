@@ -1,11 +1,12 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.CustomerDao;
 import com.clothingshop.dao.OrderDao;
+import com.clothingshop.dao.ReturnRequestDao;
 import com.clothingshop.dto.CustomerDetail;
 import com.clothingshop.dto.CustomerRow;
 import com.clothingshop.entity.Customer;
 import com.clothingshop.entity.CustomerLevel;
-import com.clothingshop.entity.PaymentStatus;
 import com.clothingshop.entity.ReturnRequest;
 import com.clothingshop.exception.BusinessException;
 import com.clothingshop.exception.ConflictException;
@@ -13,7 +14,6 @@ import com.clothingshop.util.JpaUtil;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,7 +36,7 @@ public class CustomerService {
      * only when autoDowngrade is on (BR-02).
      */
     public static void evaluateLevel(EntityManager em, int customerId) {
-        Customer customer = em.find(Customer.class, customerId);
+        Customer customer = new CustomerDao(em).findById(customerId).orElseThrow();
         CustomerLevel current = customer.getCustomerLevel();
         CustomerLevel target = levelFor(paidTotal(em, customerId));
         if (target.compareTo(current) > 0) {
@@ -54,9 +54,7 @@ public class CustomerService {
 
     /** Customer.getPaidTotal(): Σ Order.totalAmount of the customer's orders whose payment is PAID (Q32). */
     public static BigDecimal paidTotal(EntityManager em, int customerId) {
-        return em.createQuery("select coalesce(sum(o.totalAmount), 0) from Payment p join p.order o"
-                        + " where o.customer.id = :c and p.status = :paid", BigDecimal.class)
-                .setParameter("c", customerId).setParameter("paid", PaymentStatus.PAID).getSingleResult();
+        return new CustomerDao(em).paidTotal(customerId);
     }
 
     static CustomerLevel levelFor(BigDecimal paidTotal) {
@@ -96,12 +94,7 @@ public class CustomerService {
 
     /** FR-42 step 1: customers whose name, email or phone contains {@code query} (all customers when empty). */
     public List<CustomerRow> search(String query) {
-        String q = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
-        return JpaUtil.read(em -> em.createQuery("select c from Customer c where lower(c.fullName) like :q escape '!'"
-                        + " or lower(c.email) like :q escape '!' or c.phone like :q escape '!' order by c.createdAt desc", Customer.class)
-                .setParameter("q", "%" + q.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%")
-                .setMaxResults(SEARCH_LIMIT)
-                .getResultList().stream()
+        return JpaUtil.read(em -> new CustomerDao(em).search(query, SEARCH_LIMIT).stream()
                 .map(c -> new CustomerRow(c.getId(), c.getUserName(), c.getFullName(), c.getEmail(), c.getPhone(),
                         c.getCustomerLevel(), c.getCreatedAt()))
                 .toList());
@@ -111,9 +104,7 @@ public class CustomerService {
     public CustomerDetail detail(int customerId) {
         return JpaUtil.read(em -> {
             Customer c = find(em, customerId);
-            List<ReturnRequest> returns = em.createQuery("select r from ReturnRequest r join fetch r.order o"
-                    + " where o.customer.id = :c order by r.requestedAt desc", ReturnRequest.class)
-                    .setParameter("c", customerId).getResultList();
+            List<ReturnRequest> returns = new ReturnRequestDao(em).findByCustomer(customerId);
             return new CustomerDetail(c.getId(), c.getUserName(), c.getFullName(), c.getEmail(), c.getPhone(), c.getGender(),
                     c.getDob(), c.getCreatedAt(), c.getCustomerLevel(), c.isAutoDowngrade(), c.getVersion(),
                     paidTotal(em, customerId), new OrderDao(em).findVisibleByCustomer(customerId),
@@ -123,7 +114,7 @@ public class CustomerService {
     }
 
     private static Customer find(EntityManager em, int customerId) {
-        Customer customer = em.find(Customer.class, customerId);
+        Customer customer = new CustomerDao(em).findById(customerId).orElse(null);
         if (customer == null) {
             throw new BusinessException("Khách hàng không tồn tại");
         }

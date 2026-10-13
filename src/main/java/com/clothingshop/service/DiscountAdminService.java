@@ -1,5 +1,6 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.DiscountDao;
 import com.clothingshop.dao.ProductDao;
 import com.clothingshop.dto.ProductAdminView;
 import com.clothingshop.entity.Discount;
@@ -94,7 +95,7 @@ public class DiscountAdminService {
             List<Product> rows = new ProductDao(em).lockByName(rows(em, rowId).get(0).getName());
             requireNoOverlap(campaigns(em, rows, now), c, null);   // again, now that the product is locked
             for (Product p : rows) {
-                em.persist(new Discount(p, c.discountValue(), c.startDate(), c.endDate()));
+                new DiscountDao(em).persist(new Discount(p, c.discountValue(), c.startDate(), c.endDate()));
             }
             return null;
         });
@@ -110,8 +111,7 @@ public class DiscountAdminService {
         LocalDateTime now = LocalDateTime.now(clock);
         JpaUtil.inTransaction(em -> {
             List<Product> rows = new ProductDao(em).lockByName(rows(em, rowId).get(0).getName());
-            List<Discount> campaign = em.createQuery("select d from Discount d where d.product in :rows and d.startDate = :start",
-                    Discount.class).setParameter("rows", rows).setParameter("start", campaignStart).getResultList();
+            List<Discount> campaign = new DiscountDao(em).findCampaign(rows, campaignStart);
             if (campaign.isEmpty()) {
                 throw new BusinessException("Đợt giảm giá không tồn tại");
             }
@@ -158,15 +158,11 @@ public class DiscountAdminService {
     }
 
     private static List<Discount> discountsOf(EntityManager em, List<Product> rows) {
-        if (rows.isEmpty()) {
-            return List.of();
-        }
-        return em.createQuery("select d from Discount d where d.product in :rows order by d.startDate desc, d.id", Discount.class)
-                .setParameter("rows", rows).getResultList();
+        return new DiscountDao(em).findByRows(rows);
     }
 
     private static List<Product> rows(EntityManager em, int rowId) {
-        Product row = em.find(Product.class, rowId);
+        Product row = new ProductDao(em).findById(rowId).orElse(null);
         if (row == null) {
             throw new BusinessException("Mặt hàng không tồn tại");
         }

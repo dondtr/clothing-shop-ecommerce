@@ -1,14 +1,17 @@
 package com.clothingshop.dao;
 
+import com.clothingshop.entity.OrderStatus;
 import com.clothingshop.entity.Product;
 import com.clothingshop.entity.ProductCategory;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.TypedQuery;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Data access for product variant rows ({@code Product}). Rows with the same name form one product (Q44); names are
@@ -24,6 +27,56 @@ public class ProductDao {
 
     public Optional<Product> findById(int id) {
         return Optional.ofNullable(em.find(Product.class, id));
+    }
+
+    /** The row locked for update, so concurrent changes to it run one after the other. */
+    public Optional<Product> lock(int id) {
+        return Optional.ofNullable(em.find(Product.class, id, LockModeType.PESSIMISTIC_WRITE));
+    }
+
+    /** Every row, on sale or not, the newest first (staff list, FR-31). */
+    public List<Product> findAllNewestFirst() {
+        return em.createQuery("select p from Product p order by p.createdAt desc, p.id", Product.class).getResultList();
+    }
+
+    /** Every row, on sale or not, by product name (stock report, FR-43). */
+    public List<Product> findAllByName() {
+        return em.createQuery("select p from Product p order by p.name, p.id", Product.class).getResultList();
+    }
+
+    /** Number of products (names) with rows on sale. */
+    public long countProductsOnSale() {
+        return em.createQuery("select count(distinct lower(p.name)) from Product p where p.active = true", Long.class)
+                .getSingleResult();
+    }
+
+    /** Ids among {@code ids} of rows that appear in an order line or have a review: their history must stay (BR-15). */
+    public Set<Integer> findOrderedOrReviewed(Collection<Integer> ids) {
+        Set<Integer> used = new HashSet<>(em.createQuery("select distinct d.product.id from OrderDetail d where d.product.id in :ids",
+                Integer.class).setParameter("ids", ids).getResultList());
+        used.addAll(new ReviewDao(em).findReviewedProductIds(ids));
+        return used;
+    }
+
+    /** Whether the customer has a COMPLETED order with the row {@code productId} (BR-14). */
+    public boolean isBoughtBy(int customerId, int productId) {
+        return em.createQuery("select count(d) from OrderDetail d where d.order.customer.id = :c"
+                        + " and d.order.status = :completed and d.product.id = :p", Long.class)
+                .setParameter("c", customerId).setParameter("completed", OrderStatus.COMPLETED)
+                .setParameter("p", productId).getSingleResult() > 0;
+    }
+
+    public void persist(Product product) {
+        em.persist(product);
+    }
+
+    public void remove(Product product) {
+        em.remove(product);
+    }
+
+    /** Writes pending changes now, for example deleted discounts before their row. */
+    public void flush() {
+        em.flush();
     }
 
     /** The rows with the given ids that exist (deleted rows are simply absent). */

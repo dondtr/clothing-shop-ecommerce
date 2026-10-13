@@ -1,5 +1,7 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.OrderDao;
+import com.clothingshop.dao.PaymentDao;
 import com.clothingshop.dao.ProductDao;
 import com.clothingshop.dao.VoucherDao;
 import com.clothingshop.entity.Order;
@@ -11,7 +13,6 @@ import com.clothingshop.exception.BusinessException;
 import com.clothingshop.util.AppConfig;
 import com.clothingshop.util.JpaUtil;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -139,10 +140,7 @@ public class PaymentService {
      */
     public int reconcilePending() {
         LocalDateTime cutoff = LocalDateTime.now(clock).minus(timeout);
-        List<Object[]> waiting = JpaUtil.read(em -> em.createQuery("select o.id, o.orderDate, o.totalAmount from Payment p"
-                        + " join p.order o where p.method = :vnpay and p.status = :unpaid and o.orderDate <= :cutoff", Object[].class)
-                .setParameter("vnpay", PaymentMethod.VNPAY).setParameter("unpaid", PaymentStatus.UNPAID)
-                .setParameter("cutoff", cutoff).getResultList());
+        List<Object[]> waiting = JpaUtil.read(em -> new PaymentDao(em).findVnpayUnpaidPlacedBefore(cutoff));
         if (waiting.isEmpty()) {
             return 0;
         }
@@ -187,7 +185,7 @@ public class PaymentService {
             p.setStatus(PaymentStatus.PAID);
             p.setTransactionNo(transactionNo);
             p.setPaidAt(now);
-            em.flush();
+            new OrderDao(em).flush();
             int customerId = p.getOrder().getCustomer().getId();
             CustomerService.evaluateLevel(em, customerId);
             Set<Integer> products = p.getOrder().getDetails().stream().map(d -> d.getProduct().getId()).collect(Collectors.toSet());
@@ -223,9 +221,10 @@ public class PaymentService {
             if (order.getVoucher() != null) {
                 new VoucherDao(em).increaseQuantity(order.getVoucher().getCode());
             }
-            em.remove(locked.get());
-            em.flush();
-            em.remove(order);
+            new PaymentDao(em).remove(locked.get());
+            OrderDao orders = new OrderDao(em);
+            orders.flush();
+            orders.remove(order);
             return true;
         });
         if (discarded) {
@@ -255,12 +254,8 @@ public class PaymentService {
     }
 
     private static Optional<Payment> paymentOf(EntityManager em, int orderId, boolean lock) {
-        var query = em.createQuery("select p from Payment p join fetch p.order where p.order.id = :o", Payment.class)
-                .setParameter("o", orderId);
-        if (lock) {
-            query.setLockMode(LockModeType.PESSIMISTIC_WRITE);
-        }
-        return query.getResultStream().findFirst();
+        PaymentDao payments = new PaymentDao(em);
+        return lock ? payments.lockByOrder(orderId) : payments.findByOrder(orderId);
     }
 
     private static Integer parseId(String value) {

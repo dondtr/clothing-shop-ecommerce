@@ -1,13 +1,16 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.AddressDao;
+import com.clothingshop.dao.CustomerDao;
 import com.clothingshop.dao.DiscountDao;
+import com.clothingshop.dao.OrderDao;
+import com.clothingshop.dao.PaymentDao;
 import com.clothingshop.dao.ProductDao;
 import com.clothingshop.dao.VoucherDao;
 import com.clothingshop.dto.AddressForm;
 import com.clothingshop.dto.AddressView;
 import com.clothingshop.dto.CartView;
 import com.clothingshop.dto.CheckoutView;
-import com.clothingshop.entity.Address;
 import com.clothingshop.entity.Customer;
 import com.clothingshop.entity.Discount;
 import com.clothingshop.entity.Order;
@@ -113,14 +116,14 @@ public class CheckoutService {
         String[] voucherError = new String[1];
         BigDecimal discount = code.isEmpty() ? BigDecimal.ZERO : JpaUtil.read(em -> {
             try {
-                Customer customer = em.find(Customer.class, customerId);
+                Customer customer = new CustomerDao(em).findById(customerId).orElseThrow();
                 return VoucherService.checkUsable(em, code, customer.getCustomerLevel(), amount, now).calcDiscount(amount);
             } catch (BusinessException e) {
                 voucherError[0] = e.getMessage();
                 return BigDecimal.ZERO;
             }
         });
-        Customer customer = JpaUtil.read(em -> em.find(Customer.class, customerId));
+        Customer customer = JpaUtil.read(em -> new CustomerDao(em).findById(customerId).orElseThrow());
         return new CheckoutView(List.copyOf(lines), saved, addressId, request.newAddress(), customer.getFullName(),
                 customer.getPhone(), request.note(), code, voucherError[0], method, productAmount, discount, shippingFee,
                 productAmount.subtract(discount).add(shippingFee), List.copyOf(problems),
@@ -162,7 +165,7 @@ public class CheckoutService {
 
         LocalDateTime now = LocalDateTime.now(clock);
         int orderId = JpaUtil.inTransaction(em -> {
-            Customer customer = em.find(Customer.class, customerId);
+            Customer customer = new CustomerDao(em).findById(customerId).orElseThrow();
             String address = request.addressId() != null ? savedAddress(em, customerId, request.addressId())
                     : AddressService.persistNew(em, customerId, newAddress, false).toAddressString();
 
@@ -205,8 +208,8 @@ public class CheckoutService {
 
             Order order = new Order(customer, voucher, now, address, note, shippingFee, total);
             details.forEach(order::addDetail);
-            em.persist(order);
-            em.persist(new Payment(order, method));
+            new OrderDao(em).persist(order);
+            new PaymentDao(em).persist(new Payment(order, method));
             return order.getId();
         });
         if (method == PaymentMethod.COD) {
@@ -217,8 +220,7 @@ public class CheckoutService {
     }
 
     private static String savedAddress(EntityManager em, int customerId, int addressId) {
-        return em.createQuery("select a from Address a where a.id = :id and a.customer.id = :c", Address.class)
-                .setParameter("id", addressId).setParameter("c", customerId).getResultStream().findFirst()
+        return new AddressDao(em).findOwned(customerId, addressId)
                 .orElseThrow(() -> new BusinessException("Địa chỉ nhận hàng không còn, vui lòng chọn lại")).toAddressString();
     }
 }

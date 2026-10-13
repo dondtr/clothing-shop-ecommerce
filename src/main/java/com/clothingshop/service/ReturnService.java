@@ -1,9 +1,10 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.EmployeeDao;
 import com.clothingshop.dao.OrderDao;
+import com.clothingshop.dao.ReturnRequestDao;
 import com.clothingshop.dto.ReturnRow;
 import com.clothingshop.entity.Customer;
-import com.clothingshop.entity.Employee;
 import com.clothingshop.entity.Order;
 import com.clothingshop.entity.OrderStatus;
 import com.clothingshop.entity.Payment;
@@ -15,7 +16,6 @@ import com.clothingshop.exception.BusinessException;
 import com.clothingshop.exception.ValidationException;
 import com.clothingshop.util.JpaUtil;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceException;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -65,7 +65,7 @@ public class ReturnService {
                 if (!canRequestReturn(em, o, now)) {
                     throw new BusinessException(MSG_CANNOT);
                 }
-                em.persist(new ReturnRequest(o, now, text));
+                new ReturnRequestDao(em).persist(new ReturnRequest(o, now, text));
                 return null;
             });
         } catch (PersistenceException e) {
@@ -83,17 +83,12 @@ public class ReturnService {
         if (new OrderDao(em).paymentOf(o.getId()).getStatus() != PaymentStatus.PAID) {
             return false;
         }
-        return em.createQuery("select count(r) from ReturnRequest r where r.order.id = :o", Long.class)
-                .setParameter("o", o.getId()).getSingleResult() == 0;
+        return !new ReturnRequestDao(em).existsForOrder(o.getId());
     }
 
     /** Requests waiting for a decision (FR-26), oldest first, then the last decisions for reference. */
     public List<ReturnRow> list(boolean pending) {
-        return JpaUtil.read(em -> em.createQuery("select r from ReturnRequest r join fetch r.order o join fetch o.customer"
-                        + " left join fetch r.handledBy where r.status " + (pending ? "=" : "<>") + " :p order by r.requestedAt "
-                        + (pending ? "asc" : "desc"), ReturnRequest.class)
-                .setParameter("p", ReturnRequestStatus.PENDING).setMaxResults(pending ? 500 : 30)
-                .getResultList().stream().map(r -> {
+        return JpaUtil.read(em -> new ReturnRequestDao(em).findForStaff(pending, pending ? 500 : 30).stream().map(r -> {
                     Order o = r.getOrder();
                     Payment p = new OrderDao(em).paymentOf(o.getId());
                     return new ReturnRow(r.getId(), o.getId(), o.getCustomer().getId(), o.getCustomer().getFullName(),
@@ -109,7 +104,7 @@ public class ReturnService {
      */
     public void approve(int requestId, int employeeId, String employeeUserName) {
         Object[] before = JpaUtil.read(em -> {
-            ReturnRequest r = em.find(ReturnRequest.class, requestId);
+            ReturnRequest r = new ReturnRequestDao(em).findById(requestId).orElse(null);
             if (r == null || r.getStatus() != ReturnRequestStatus.PENDING) {
                 throw new BusinessException(MSG_HANDLED);
             }
@@ -125,7 +120,7 @@ public class ReturnService {
         Object[] done;
         try {
             done = JpaUtil.inTransaction(em -> {
-                ReturnRequest r = em.find(ReturnRequest.class, requestId, LockModeType.PESSIMISTIC_WRITE);
+                ReturnRequest r = new ReturnRequestDao(em).lock(requestId).orElseThrow(() -> new BusinessException(MSG_HANDLED));
                 Order o = r.getOrder();
                 Payment p = new OrderDao(em).paymentOf(o.getId());
                 if (r.getStatus() != ReturnRequestStatus.PENDING || o.getStatus() != OrderStatus.COMPLETED
@@ -133,12 +128,12 @@ public class ReturnService {
                     throw new BusinessException(MSG_HANDLED);
                 }
                 r.setStatus(ReturnRequestStatus.APPROVED);
-                r.setHandledBy(em.getReference(Employee.class, employeeId));
+                r.setHandledBy(new EmployeeDao(em).reference(employeeId));
                 r.setHandledAt(now);
                 p.setStatus(PaymentStatus.REFUND);
                 o.setStatus(OrderStatus.CANCELLED);
                 OrderService.giveBack(em, o);
-                em.flush();
+                new OrderDao(em).flush();
                 CustomerService.evaluateLevel(em, o.getCustomer().getId());
                 Customer c = o.getCustomer();
                 return new Object[] {c.getEmail(), c.getFullName(), o.getTotalAmount()};
@@ -158,12 +153,12 @@ public class ReturnService {
     public void reject(int requestId, int employeeId) {
         LocalDateTime now = LocalDateTime.now(clock);
         Object[] done = JpaUtil.inTransaction(em -> {
-            ReturnRequest r = em.find(ReturnRequest.class, requestId, LockModeType.PESSIMISTIC_WRITE);
+            ReturnRequest r = new ReturnRequestDao(em).lock(requestId).orElse(null);
             if (r == null || r.getStatus() != ReturnRequestStatus.PENDING) {
                 throw new BusinessException(MSG_HANDLED);
             }
             r.setStatus(ReturnRequestStatus.REJECTED);
-            r.setHandledBy(em.getReference(Employee.class, employeeId));
+            r.setHandledBy(new EmployeeDao(em).reference(employeeId));
             r.setHandledAt(now);
             Customer c = r.getOrder().getCustomer();
             return new Object[] {c.getEmail(), c.getFullName(), r.getOrder().getId()};

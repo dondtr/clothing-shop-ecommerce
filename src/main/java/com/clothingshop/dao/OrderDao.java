@@ -4,9 +4,12 @@ import com.clothingshop.dto.OrderRow;
 import com.clothingshop.entity.Order;
 import com.clothingshop.entity.OrderStatus;
 import com.clothingshop.entity.Payment;
+import com.clothingshop.entity.PaymentMethod;
+import com.clothingshop.entity.PaymentStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.TypedQuery;
+import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -77,6 +80,49 @@ public class OrderDao {
             counts.put((OrderStatus) row[0], (Long) row[1]);
         }
         return counts;
+    }
+
+    /** Orders being delivered whose shippedAt is in [from, to) (J1): rows of order id, customer email, customer name. */
+    public List<Object[]> findShippedBetween(LocalDateTime from, LocalDateTime to) {
+        return em.createQuery("select o.id, c.email, c.fullName from Order o join o.customer c"
+                        + " where o.status = :s and o.shippedAt >= :from and o.shippedAt < :to", Object[].class)
+                .setParameter("s", OrderStatus.SHIPPING).setParameter("from", from).setParameter("to", to)
+                .getResultList();
+    }
+
+    /**
+     * Orders being delivered with their delivery issue, if any (J2): rows of order id, shippedAt, issue status,
+     * issue resolvedAt.
+     */
+    public List<Object[]> findShippingWithIssue() {
+        return em.createQuery("select o.id, o.shippedAt, i.status, i.resolvedAt"
+                        + " from Order o left join DeliveryIssue i on i.order = o where o.status = :s", Object[].class)
+                .setParameter("s", OrderStatus.SHIPPING).getResultList();
+    }
+
+    /** Ids of unpaid COD orders still PENDING or CONFIRMED that were placed before {@code cutoff} (J3). */
+    public List<Integer> findCodNotShippedBefore(LocalDateTime cutoff) {
+        return em.createQuery("select o.id from Payment p join p.order o where p.method = :cod"
+                        + " and p.status = :unpaid and o.status in :statuses and o.orderDate < :cutoff", Integer.class)
+                .setParameter("cod", PaymentMethod.COD).setParameter("unpaid", PaymentStatus.UNPAID)
+                .setParameter("statuses", List.of(OrderStatus.PENDING, OrderStatus.CONFIRMED))
+                .setParameter("cutoff", cutoff).getResultList();
+    }
+
+    public void persist(Order order) {
+        em.persist(order);
+    }
+
+    public void remove(Order order) {
+        em.remove(order);
+    }
+
+    /**
+     * Writes pending changes now, for example a payment status that the level evaluation reads back with a query, or
+     * a payment that must be deleted before its order.
+     */
+    public void flush() {
+        em.flush();
     }
 
     private static List<OrderRow> rows(TypedQuery<Object[]> query) {

@@ -60,7 +60,7 @@ public class ProfileService {
             user.setGender(gender);
             user.setDob(dob);
             user.setPhone(phone);
-            em.flush();   // increments the version before it is shown again
+            new UserDao(em).flush();   // increments the version before it is shown again
             return view(user);
         });
     }

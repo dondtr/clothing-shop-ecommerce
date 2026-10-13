@@ -1,9 +1,9 @@
 package com.clothingshop.service;
 
-import com.clothingshop.dao.OrderDao;
+import com.clothingshop.dao.ProductDao;
+import com.clothingshop.dao.StatisticsDao;
 import com.clothingshop.dto.StatisticsReport;
 import com.clothingshop.entity.OrderStatus;
-import com.clothingshop.entity.PaymentStatus;
 import com.clothingshop.entity.Product;
 import com.clothingshop.exception.ValidationException;
 import com.clothingshop.util.JpaUtil;
@@ -58,50 +58,34 @@ public class StatisticsService {
         LocalDateTime start = from.atStartOfDay();
         LocalDateTime end = to.plusDays(1).atStartOfDay();
         return JpaUtil.read(em -> {
-            Object[] totals = em.createQuery("select coalesce(sum(o.totalAmount), 0), count(o) from Payment p join p.order o"
-                    + " where p.status = :paid and p.paidAt >= :s and p.paidAt < :e", Object[].class)
-                    .setParameter("paid", PaymentStatus.PAID).setParameter("s", start).setParameter("e", end).getSingleResult();
+            StatisticsDao stats = new StatisticsDao(em);
+            Object[] totals = stats.paidTotals(start, end);
 
             Map<OrderStatus, Long> byStatus = new EnumMap<>(OrderStatus.class);
             for (OrderStatus s : OrderStatus.values()) {
                 byStatus.put(s, 0L);
             }
             long placed = 0;
-            for (Object[] r : em.createQuery("select o.status, count(o) from Payment p join p.order o where " + OrderDao.VISIBLE
-                    + " and o.orderDate >= :s and o.orderDate < :e group by o.status", Object[].class)
-                    .setParameter("s", start).setParameter("e", end).getResultList()) {
+            for (Object[] r : stats.placedByStatus(start, end)) {
                 byStatus.put((OrderStatus) r[0], (Long) r[1]);
                 placed += (Long) r[1];
             }
 
-            List<StatisticsReport.ProductStat> products = em.createQuery("select pr.name, sum(d.quantity), sum(d.subtotal)"
-                            + " from Payment p join p.order o join o.details d join d.product pr where p.status = :paid"
-                            + " and p.paidAt >= :s and p.paidAt < :e group by pr.name order by sum(d.subtotal) desc", Object[].class)
-                    .setParameter("paid", PaymentStatus.PAID).setParameter("s", start).setParameter("e", end)
-                    .getResultList().stream()
+            List<StatisticsReport.ProductStat> products = stats.soldByProduct(start, end).stream()
                     .map(r -> new StatisticsReport.ProductStat((String) r[0], ((Number) r[1]).longValue(), money(r[2]))).toList();
-            List<StatisticsReport.RowStat> rows = em.createQuery("select pr.id, pr.name, pr.color, pr.size, sum(d.quantity),"
-                            + " sum(d.subtotal) from Payment p join p.order o join o.details d join d.product pr where p.status = :paid"
-                            + " and p.paidAt >= :s and p.paidAt < :e group by pr.id, pr.name, pr.color, pr.size"
-                            + " order by sum(d.subtotal) desc", Object[].class)
-                    .setParameter("paid", PaymentStatus.PAID).setParameter("s", start).setParameter("e", end)
-                    .getResultList().stream()
+            List<StatisticsReport.RowStat> rows = stats.soldByRow(start, end).stream()
                     .map(r -> new StatisticsReport.RowStat((Integer) r[0], (String) r[1], (String) r[2], (String) r[3],
                             ((Number) r[4]).longValue(), money(r[5]))).toList();
 
             boolean monthly = ChronoUnit.DAYS.between(from, to) >= DAILY_UP_TO;
             Map<String, BigDecimal[]> buckets = buckets(from, to, monthly);
-            for (Object[] r : em.createQuery("select p.paidAt, o.totalAmount from Payment p join p.order o where p.status = :paid"
-                    + " and p.paidAt >= :s and p.paidAt < :e", Object[].class)
-                    .setParameter("paid", PaymentStatus.PAID).setParameter("s", start).setParameter("e", end).getResultList()) {
+            for (Object[] r : stats.paidAmounts(start, end)) {
                 LocalDate day = ((LocalDateTime) r[0]).toLocalDate();
                 BigDecimal[] b = buckets.get(monthly ? MONTH.format(day) : DAY.format(day));
                 b[0] = b[0].add((BigDecimal) r[1]);
                 b[1] = b[1].add(BigDecimal.ONE);
             }
-            for (LocalDateTime placedAt : em.createQuery("select o.orderDate from Payment p join p.order o where " + OrderDao.VISIBLE
-                    + " and o.orderDate >= :s and o.orderDate < :e", LocalDateTime.class)
-                    .setParameter("s", start).setParameter("e", end).getResultList()) {
+            for (LocalDateTime placedAt : stats.placedDates(start, end)) {
                 BigDecimal[] b = buckets.get(monthly ? MONTH.format(placedAt) : DAY.format(placedAt));
                 b[2] = b[2].add(BigDecimal.ONE);
             }
@@ -121,7 +105,7 @@ public class StatisticsService {
     /** Statistics.stockReport(): current stock per product and row, products not on sale included. */
     private static List<StatisticsReport.StockStat> stock(EntityManager em) {
         Map<String, List<Product>> groups = new LinkedHashMap<>();
-        for (Product p : em.createQuery("select p from Product p order by p.name, p.id", Product.class).getResultList()) {
+        for (Product p : new ProductDao(em).findAllByName()) {
             groups.computeIfAbsent(p.getName().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(p);
         }
         return groups.values().stream().map(g -> new StatisticsReport.StockStat(g.get(0).getId(), g.get(0).getName(),

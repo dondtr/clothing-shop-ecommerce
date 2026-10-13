@@ -45,4 +45,9 @@ public class UserDao {
     public void persist(User user) {
         em.persist(user);
     }
+
+    /** Writes pending changes now, so the version shown next is the new one. */
+    public void flush() {
+        em.flush();
+    }
 }

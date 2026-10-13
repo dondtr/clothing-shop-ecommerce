@@ -1,10 +1,10 @@
 package com.clothingshop.service;
 
+import com.clothingshop.dao.CustomerDao;
 import com.clothingshop.dao.DiscountDao;
 import com.clothingshop.dao.ProductDao;
 import com.clothingshop.dao.WishlistDao;
 import com.clothingshop.dto.WishlistEntry;
-import com.clothingshop.entity.Customer;
 import com.clothingshop.entity.Discount;
 import com.clothingshop.entity.Product;
 import com.clothingshop.entity.Wishlist;
@@ -52,8 +52,8 @@ public class WishlistService {
                 throw new BusinessException(MSG_NOT_SOLD);
             }
             Wishlist wishlist = new WishlistDao(em).findByCustomer(customerId).orElseGet(() -> {
-                Wishlist created = new Wishlist(em.getReference(Customer.class, customerId));
-                em.persist(created);
+                Wishlist created = new Wishlist(new CustomerDao(em).reference(customerId));
+                new WishlistDao(em).persist(created);
                 return created;
             });
             if (wishlist.getProducts().stream().anyMatch(p -> sameProduct(p, product))) {
